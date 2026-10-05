@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Manufacturing Lead Time Calculator">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Manufacturing LT Calculator</title>
+<style>
+:root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#2563eb;--blue2:#1d4ed8;--green:#166534;--greenbg:#dcfce7;--amber:#92400e;--amberbg:#fef3c7;--red:#991b1b;--redbg:#fee2e2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Arial,Helvetica,sans-serif}.wrap{max-width:1100px;margin:auto;padding:16px}
+header{background:#0f172a;color:#fff;border-radius:18px;padding:22px;margin-bottom:14px}header h1{margin:0 0 5px;font-size:25px}header p{margin:0;color:#cbd5e1}
+nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.tab{border:1px solid var(--line);background:#fff;color:#334155;padding:10px 15px;border-radius:10px;font-weight:700;cursor:pointer}.tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{display:none}.panel.active{display:block}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 2px 9px #0f172a0b}.card h2{margin:0 0 15px;font-size:18px}
+label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{margin-bottom:15px}input,select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-size:15px;background:#fff}button{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff;width:100%;font-size:15px;padding:13px}.primary:hover{background:var(--blue2)}.secondary{background:#e2e8f0;color:#0f172a}.danger{background:var(--redbg);color:var(--red)}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{border:1px solid var(--line);border-radius:9px;padding:9px;display:flex;gap:7px;align-items:center}.check input{width:auto}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini{background:#f8fafc;border-radius:9px;padding:9px}.mini small{display:block;color:var(--muted)}.mini b{display:block;margin-top:3px}
+.hero{text-align:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:13px;padding:18px;margin-bottom:15px}.big{font-size:40px;font-weight:800;color:var(--blue)}.sub{color:var(--muted)}table{width:100%;border-collapse:collapse}th,td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:left}th{background:#f8fafc;font-size:12px}.right{text-align:right}
+.notice{padding:11px;border-radius:9px;margin-top:12px;font-weight:600}.good{background:var(--greenbg);color:var(--green)}.warn{background:var(--amberbg);color:var(--amber)}.bad{background:var(--redbg);color:var(--red)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.actions button{flex:0 0 auto}.muted{color:var(--muted);font-size:12px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.master-table input{padding:7px;font-size:13px}.master-table select{padding:7px;font-size:13px}
+.empty{text-align:center;color:var(--muted);padding:25px}.footer{text-align:center;color:var(--muted);padding:18px;font-size:12px}
+@media(max-width:750px){.grid,.form-row,.info-grid{grid-template-columns:1fr}.full{grid-column:auto}.checks{grid-template-columns:1fr}.wrap{padding:10px}header{padding:18px}.big{font-size:34px}table{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>Manufacturing Lead Time Calculator</h1><p>Calculate manufacturing LT and estimated ETD from CCT, customer difficulty and special treatment.</p></header>
+
+<nav>
+<button class="tab active" data-tab="calculator">Calculator</button>
+<button class="tab" data-tab="history">History</button>
+<button class="tab" data-tab="master">Master Data</button>
+<button class="tab" data-tab="about">About</button>
+</nav>
+
+<section id="calculator" class="panel active">
+<div class="grid">
+<div class="card">
+<h2>Calculation Inputs</h2>
+<div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div>
+<div class="field"><label>Customer</label><select id="customer"></select></div>
+<div class="info-grid">
+<div class="mini"><small>Difficulty</small><b id="difficulty">—</b></div>
+<div class="mini"><small>Customer Buffer</small><b id="customerBuffer">—</b></div>
+</div>
+<div class="field" style="margin-top:15px"><label>Special Treatment</label><div class="checks" id="specials"></div></div>
+<div class="field"><label>Manufacturing Start Date</label><input id="startDate" type="date"></div>
+<button class="primary" id="calcBtn">CALCULATE LEAD TIME</button><div id="inputNotice"></div>
+</div>
+
+<div class="card">
+<h2>Calculation Result</h2>
+<div class="hero"><div class="big" id="totalDays">—</div><div class="sub" id="totalWeeks">Enter inputs and calculate</div></div>
+<table>
+<tr><td>Base LT</td><td class="right" id="baseLT">—</td></tr>
+<tr><td>Drawing Breakdown LT</td><td class="right" id="drawingLT">—</td></tr>
+<tr><td>Customer Difficulty Buffer</td><td class="right" id="difficultyLT">—</td></tr>
+<tr><td>Special Treatment Buffer</td><td class="right" id="specialLT">—</td></tr>
+<tr><th>Total Manufacturing LT</th><th class="right" id="sumLT">—</th></tr>
+</table>
+<div id="dateBox" class="notice good" style="display:none;text-align:center"><div>Estimated ETD</div><strong id="etd" style="font-size:22px"></strong></div>
+<div id="resultNotice"></div>
+</div>
+</div>
+</section>
+
+<section id="history" class="panel">
+<div class="card">
+<h2>Calculation History</h2>
+<div class="actions"><button class="secondary" id="exportHistory">Export CSV</button><button class="danger" id="clearHistory">Clear History</button></div>
+<div id="historyTable"></div>
+</div>
+</section>
+
+<section id="master" class="panel">
+<div class="card">
+<h2>CCT / Base LT / Drawing Breakdown</h2>
+<p class="muted">Changes are saved in this browser only. Keep a backup before changing rules.</p>
+<div class="master-table" id="cctMaster"></div>
+</div>
+<div class="card" style="margin-top:14px">
+<h2>Customers</h2>
+<div class="master-table" id="customerMaster"></div>
+</div>
+<div class="card" style="margin-top:14px">
+<h2>Difficulty Buffers & Special Treatments</h2>
+<div class="master-table" id="bufferMaster"></div>
+</div>
+<div class="card" style="margin-top:14px">
+<h2>Master Data Backup</h2>
+<div class="actions"><button class="secondary" id="exportMaster">Export JSON</button><button class="secondary" id="importMasterBtn">Import JSON</button><input id="importMaster" type="file" accept=".json" style="display:none"></div>
+<button class="danger" id="resetMaster">Reset Master Data to Default</button>
+</div>
+</section>
+
+<section id="about" class="panel">
+<div class="card">
+<h2>Calculation Formula</h2>
+<p><b>Total LT = Base LT + Drawing Breakdown LT + Customer Difficulty Buffer + Special Treatment Buffer</b></p>
+<p class="muted">Version 2.0. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
+<h2>Deployment</h2>
+<p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
+</div>
+</section>
+<div class="footer">Manufacturing LT Calculator v2.0 • Offline PWA</div>
+</div>
+
+<script>
+const DEFAULT={
+ cct:[
+  {label:"1–50",min:1,max:50,baseWeeks:4,baseDays:28,drawingDays:3},
+  {label:"51–100",min:51,max:100,baseWeeks:6,baseDays:42,drawingDays:5},
+  {label:"101–300",min:101,max:300,baseWeeks:8,baseDays:56,drawingDays:7},
+  {label:"301–500",min:301,max:500,baseWeeks:10,baseDays:70,drawingDays:10},
+  {label:"501–1000",min:501,max:1000,baseWeeks:12,baseDays:84,drawingDays:15},
+  {label:">1000",min:1001,max:null,baseWeeks:null,baseDays:null,drawingDays:20}
+ ],
+ customers:[
+ ["HITACHI",2],["KOBELCO",1],["SUMITOMO",2],["YAMATO",3],["CATERPILLAR",1],["TAKEUCHI",2],
+ ["KOMATSU",4],["MITSUBISHI THERMAL",3],["SAKAI",2],["TOHATSU",2],["GAC",2],["KYOEISHA",2],
+ ["KATO",3],["YAMABIKO",3],["Mitsubishi Logi",2],["GIKEN",3],["HSC",3],["KUBOTA",3]
+ ],
+ difficulty:[
+  {level:1,name:"Easy",buffer:0},{level:2,name:"Medium",buffer:2},{level:3,name:"Hard",buffer:5},
+  {level:4,name:"Very Hard",buffer:7},{level:5,name:"Extremely Hard",buffer:null}
+ ],
+ specials:[["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2]]
+};
+const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history";
+let master=loadMaster();
+
+function clone(x){return JSON.parse(JSON.stringify(x))}
+function loadMaster(){try{return JSON.parse(localStorage.getItem(KEY))||clone(DEFAULT)}catch(e){return clone(DEFAULT)}}
+function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
+function history(){try{return JSON.parse(localStorage.getItem(HIST))||[]}catch(e){return[]}}
+function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
+
+const $=id=>document.getElementById(id);
+function init(){
+ const d=new Date();$("startDate").value=d.toISOString().slice(0,10);
+ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+ $("customer").onchange=customerInfo;
+ $("calcBtn").onclick=calculate;
+ $("clearHistory").onclick=()=>{if(confirm("Clear all calculation history?")){saveHistory([]);renderHistory()}};
+ $("exportHistory").onclick=exportCSV;
+ $("exportMaster").onclick=exportMaster;
+ $("importMasterBtn").onclick=()=>$("importMaster").click();
+ $("importMaster").onchange=importMaster;
+ $("resetMaster").onclick=()=>{if(confirm("Reset all master data to default?")){master=clone(DEFAULT);saveMaster();renderAll()}};
+ renderAll(); renderHistory();
+}
+function showTab(id){document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id))}
+function renderAll(){renderInputs();renderMaster()}
+function renderInputs(){
+ $("customer").innerHTML='<option value="">-- Select customer --</option>'+master.customers.map(x=>`<option>${esc(x[0])}</option>`).join("");
+ $("specials").innerHTML=master.specials.map((x,i)=>`<label class="check"><input type="checkbox" data-i="${i}"> ${esc(x[0])} <span class="muted">(+${x[1]} days)</span></label>`).join("");
+ customerInfo();
+}
+function customerInfo(){
+ const name=$("customer").value, c=master.customers.find(x=>x[0]===name);
+ if(!c){$("difficulty").textContent="—";$("customerBuffer").textContent="—";return}
+ const d=master.difficulty.find(x=>x.level===Number(c[1]));
+ $("difficulty").textContent=`Level ${d.level} — ${d.name}`;
+ $("customerBuffer").textContent=d.buffer===null?"Discuss in advance":`+${d.buffer} days`;
+}
+function getRule(cct){return master.cct.find(r=>cct>=r.min&&(r.max===null||cct<=r.max))}
+function calculate(){
+ $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("dateBox").style.display="none";
+ const cct=Number($("cct").value),name=$("customer").value,start=$("startDate").value;
+ if(!Number.isInteger(cct)||cct<1)return notice("inputNotice","Enter a valid CCT count.","bad");
+ if(!name)return notice("inputNotice","Select a customer.","bad");
+ if(!start)return notice("inputNotice","Select a start date.","bad");
+ const r=getRule(cct),c=master.customers.find(x=>x[0]===name),d=master.difficulty.find(x=>x.level===Number(c[1]));
+ const special=[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)]);
+ const specialDays=special.reduce((s,x)=>s+Number(x[1]),0);
+ $("baseLT").textContent=r.baseDays===null?"Discuss":`${r.baseDays} days (${r.baseWeeks} weeks)`;
+ $("drawingLT").textContent=`${r.drawingDays} days`;
+ $("difficultyLT").textContent=d.buffer===null?"Discuss":`+${d.buffer} days`;
+ $("specialLT").textContent=`+${specialDays} days`;
+ if(r.baseDays===null||d.buffer===null){
+  $("totalDays").textContent="REVIEW";$("totalWeeks").textContent="Advance discussion required";$("sumLT").textContent="—";
+  return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
+ }
+ const total=r.baseDays+r.drawingDays+d.buffer+specialDays;
+ $("totalDays").textContent=`${total} DAYS`;$("totalWeeks").textContent=`≈ ${(total/7).toFixed(1)} weeks`;$("sumLT").textContent=`${total} days`;
+ const date=new Date(start+"T00:00:00");date.setDate(date.getDate()+total);
+ $("etd").textContent=formatDate(date);$("dateBox").style.display="block";
+ notice("resultNotice",`✓ ${name}: Level ${d.level} (${d.name}). Calculation completed.`,"good");
+ const h=history();h.unshift({date:new Date().toISOString(),start,cct,customer:name,difficulty:`L${d.level} ${d.name}`,special:special.map(x=>x[0]).join(", ")||"None",lt:total,etd:date.toISOString().slice(0,10)});saveHistory(h.slice(0,200));renderHistory();
+}
+function renderHistory(){
+ const h=history();if(!h.length){$("historyTable").innerHTML='<div class="empty">No calculations saved yet.</div>';return}
+ $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Start</th><th>CCT</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>LT</th><th>ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${x.start}</td><td>${x.cct}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td></tr>`).join("")}</tbody></table></div>`;
+}
+function renderMaster(){
+ $("cctMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min</th><th>Max</th><th>Base Weeks</th><th>Base Days</th><th>Drawing Days</th></tr></thead><tbody>${master.cct.map((r,i)=>`<tr>
+<td>${esc(r.label)}</td><td><input data-m="cmin" data-i="${i}" type="number" value="${r.min}"></td><td><input data-m="cmax" data-i="${i}" type="number" value="${r.max??""}"></td><td><input data-m="weeks" data-i="${i}" type="number" value="${r.baseWeeks??""}"></td><td><input data-m="days" data-i="${i}" type="number" value="${r.baseDays??""}"></td><td><input data-m="draw" data-i="${i}" type="number" value="${r.drawingDays}"></td></tr>`).join("")}</tbody></table>`;
+ $("customerMaster").innerHTML=`<table><thead><tr><th>Customer</th><th>Difficulty Level</th></tr></thead><tbody>${master.customers.map((c,i)=>`<tr><td>${esc(c[0])}</td><td><select data-cust="${i}">${master.difficulty.map(d=>`<option value="${d.level}" ${Number(c[1])===d.level?"selected":""}>Level ${d.level} — ${esc(d.name)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>`;
+ $("bufferMaster").innerHTML=`<table><thead><tr><th>Difficulty</th><th>Buffer</th><th>Special Treatment</th><th>Buffer</th></tr></thead><tbody>
+${master.difficulty.map((d,i)=>`<tr><td>${esc(d.name)} (L${d.level})</td><td><input data-diff="${i}" type="number" value="${d.buffer??""}" placeholder="Discuss"></td>
+${i===0?`<td rowspan="${master.difficulty.length}">${master.specials.map((s,j)=>`<div style="margin:4px 0"><input data-sp-name="${j}" value="${esc(s[0])}" style="width:58%"> <input data-sp-days="${j}" type="number" value="${s[1]}" style="width:35%"></div>`).join("")}</td><td rowspan="${master.difficulty.length}">days</td>`:""} </tr>`).join("")}</tbody></table>`;
+ bindMaster();
+}
+function bindMaster(){
+ document.querySelectorAll("[data-m]").forEach(el=>el.onchange=()=>{const i=+el.dataset.i,r=master.cct[i],v=el.value;r.min=+document.querySelector(`[data-m=cmin][data-i="${i}"]`).value;r.max=(document.querySelector(`[data-m=cmax][data-i="${i}"]`).value||"")*1||null;r.baseWeeks=(document.querySelector(`[data-m=weeks][data-i="${i}"]`).value||"")*1||null;r.baseDays=(document.querySelector(`[data-m=days][data-i="${i}"]`).value||"")*1||null;r.drawingDays=+document.querySelector(`[data-m=draw][data-i="${i}"]`).value;saveMaster();renderAll()});
+ document.querySelectorAll("[data-cust]").forEach(el=>el.onchange=()=>{master.customers[+el.dataset.cust][1]=+el.value;saveMaster();renderInputs()});
+ document.querySelectorAll("[data-diff]").forEach(el=>el.onchange=()=>{master.difficulty[+el.dataset.diff].buffer=el.value===""?null:+el.value;saveMaster();renderAll()});
+ document.querySelectorAll("[data-sp-name]").forEach(el=>el.onchange=()=>{master.specials[+el.dataset.spName][0]=el.value;saveMaster();renderAll()});
+ document.querySelectorAll("[data-sp-days]").forEach(el=>el.onchange=()=>{master.specials[+el.dataset.spDays][1]=+el.value;saveMaster();renderAll()});
+}
+function exportMaster(){download("manufacturing_lt_master.json",JSON.stringify(master,null,2),"application/json")}
+function importMaster(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.cct||!x.customers||!x.difficulty||!x.specials)throw Error();master=x;saveMaster();renderAll();alert("Master data imported.")}catch(_){alert("Invalid master data file.")}};r.readAsText(f)}
+function exportCSV(){const h=history();if(!h.length)return alert("No history to export.");const rows=[["Calculated","Start","CCT","Customer","Difficulty","Special","LT Days","ETD"],...h.map(x=>[x.date,x.start,x.cct,x.customer,x.difficulty,x.special,x.lt,x.etd])];download("manufacturing_lt_history.csv",rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n"),"text/csv")}
+function download(name,data,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+function notice(id,msg,cls){$(id).innerHTML=`<div class="notice ${cls}">${msg}</div>`}
+function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "Manufacturing Lead Time Calculator",
+  "short_name": "Mfg LT Calculator",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "description": "Manufacturing lead time and ETD calculator",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
