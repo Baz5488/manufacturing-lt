@@ -22,3 +22,17 @@ Static PWA for GitHub Pages.
 - Use Master Data → Export JSON to back up the rules.
 - Use History → Export CSV to export calculations.
 - Current ETD calculation uses calendar days.
+
+
+### V2.2 — Branch Count Difficulty
+Branch Count is now an input to the calculator.
+
+Default Branch Difficulty:
+- 0–10 branches → Level 1
+- 11–30 branches → Level 2
+- 31–60 branches → Level 3
+- >60 branches → Level 4
+
+Final Difficulty Level = the higher of Customer Difficulty Level and Branch Difficulty Level.
+
+Branch rules are editable under Master Data.

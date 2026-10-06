@@ -1,4 +1,4 @@
-const CACHE="mfg-lt-v2-1";
+const CACHE="mfg-lt-v2-2";
 const ASSETS=["./","./index.html","./manifest.json","./icon.svg"];
 
 self.addEventListener("install", event => {
