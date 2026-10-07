@@ -23,9 +23,28 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.master-table input{padding:7px;font-size:13px}.master-table select{padding:7px;font-size:13px}
 .empty{text-align:center;color:var(--muted);padding:25px}.footer{text-align:center;color:var(--muted);padding:18px;font-size:12px}
 @media(max-width:750px){.grid,.form-row,.info-grid{grid-template-columns:1fr}.full{grid-column:auto}.checks{grid-template-columns:1fr}.wrap{padding:10px}header{padding:18px}.big{font-size:34px}table{font-size:12px}}
+
+.back-to-top{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin:18px 0 8px;
+  padding:10px 16px;
+  border:1px solid #d8e0ec;
+  border-radius:10px;
+  background:#fff;
+  color:#17345f;
+  font-weight:700;
+  text-decoration:none;
+  cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,.06);
+}
+.back-to-top:hover{background:#f3f7fc}
+
 </style>
 </head>
 <body>
+<div id="pageTop"></div>
 <div class="wrap">
 <header><h1>Manufacturing Lead Time Calculator</h1><p>Calculate manufacturing LT and estimated ETD from CCT, customer difficulty, special treatment and manufacturing quantity.</p></header>
 
@@ -40,13 +59,10 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="grid">
 <div class="card">
 <h2>Calculation Inputs</h2>
-<div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branchCount" type="number" min="0" step="1" value="0" placeholder="e.g. 25"></div></div>
-<div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div>
+<div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div></div>
 <div class="field"><label>Customer</label><select id="customer"></select></div>
 <div class="info-grid">
-<div class="mini"><small>Customer Difficulty</small><b id="difficulty">—</b></div>
-<div class="mini"><small>Branch Difficulty</small><b id="branchDifficulty">—</b></div>
-<div class="mini"><small>Final Difficulty</small><b id="finalDifficulty">—</b></div>
+<div class="mini"><small>Difficulty</small><b id="difficulty">—</b></div>
 <div class="mini"><small>Customer Buffer</small><b id="customerBuffer">—</b></div>
 </div>
 <div class="field" style="margin-top:15px"><label>Special Treatment</label><div class="checks" id="specials"></div></div>
@@ -60,10 +76,7 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <table>
 <tr><td>Base LT</td><td class="right" id="baseLT">—</td></tr>
 <tr><td>Drawing Breakdown LT</td><td class="right" id="drawingLT">—</td></tr>
-<tr><td>Customer Difficulty</td><td class="right" id="customerDifficultyResult">—</td></tr>
-<tr><td>Branch Difficulty</td><td class="right" id="branchDifficultyResult">—</td></tr>
-<tr><td>Final Difficulty</td><td class="right" id="finalDifficultyResult">—</td></tr>
-<tr><td>Final Difficulty Buffer</td><td class="right" id="difficultyLT">—</td></tr>
+<tr><td>Customer Difficulty Buffer</td><td class="right" id="difficultyLT">—</td></tr>
 <tr><td>Special Treatment Buffer</td><td class="right" id="specialLT">—</td></tr>
 <tr><td>Manufacturing LT before Qty Factor</td><td class="right" id="preQtyLT">—</td></tr>
 <tr><td>Qty Factor</td><td class="right" id="qtyFactor">—</td></tr>
@@ -81,6 +94,8 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="actions"><button class="secondary" id="exportHistory">Export CSV</button><button class="danger" id="clearHistory">Clear History</button></div>
 <div id="historyTable"></div>
 </div>
+
+<div style="text-align:center"><a class="back-to-top" href="#pageTop">↑ Back to Top</a></div>
 </section>
 
 <section id="master" class="panel">
@@ -92,11 +107,6 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="card" style="margin-top:14px">
 <h2>Customers</h2>
 <div class="master-table" id="customerMaster"></div>
-</div>
-<div class="card" style="margin-top:14px">
-<h2>Branch Count → Difficulty Level</h2>
-<p class="muted">Branch count determines an additional difficulty level. The final difficulty uses the higher of the customer level and branch level.</p>
-<div class="master-table" id="branchMaster"></div>
 </div>
 <div class="card" style="margin-top:14px">
 <h2>Difficulty Buffers & Special Treatments</h2>
@@ -112,20 +122,21 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="actions"><button class="secondary" id="exportMaster">Export JSON</button><button class="secondary" id="importMasterBtn">Import JSON</button><input id="importMaster" type="file" accept=".json" style="display:none"></div>
 <button class="danger" id="resetMaster">Reset Master Data to Default</button>
 </div>
+
+<div style="text-align:center"><a class="back-to-top" href="#pageTop">↑ Back to Top</a></div>
 </section>
 
 <section id="about" class="panel">
 <div class="card">
 <h2>Calculation Formula</h2>
-<p><b>Final Difficulty Level = higher of Customer Difficulty and Branch Difficulty</b></p>
-<p><b>Manufacturing LT = (Base LT + Drawing Breakdown LT + Final Difficulty Buffer + Special Treatment Buffer) × Quantity Factor</b></p>
+<p><b>Manufacturing LT = (Base LT + Drawing Breakdown LT + Customer Difficulty Buffer + Special Treatment Buffer) × Quantity Factor</b></p>
 <p><b>ETD = Manufacturing Start Date + Total Manufacturing LT</b></p>
-<p class="muted">Version 2.2. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
+<p class="muted">Version 2.1. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
 <h2>Deployment</h2>
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">Manufacturing LT Calculator v2.2 • Offline PWA</div>
+<div class="footer">Manufacturing LT Calculator v2.3 • Offline PWA</div>
 </div>
 
 <script>
@@ -148,12 +159,6 @@ const DEFAULT={
   {level:4,name:"Very Hard",buffer:7},{level:5,name:"Extremely Hard",buffer:null}
  ],
  specials:[["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2]],
- branchRules:[
-  {label:"0–10",min:0,max:10,level:1},
-  {label:"11–30",min:11,max:30,level:2},
-  {label:"31–60",min:31,max:60,level:3},
-  {label:">60",min:61,max:null,level:4}
- ],
  quantityFactors:[
   {label:"1 pc",min:1,max:1,factor:1.00},
   {label:"2–10 pcs",min:2,max:10,factor:1.10},
@@ -166,15 +171,7 @@ const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history";
 let master=loadMaster();
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
-function loadMaster(){
- try{
-  const saved=JSON.parse(localStorage.getItem(KEY));
-  if(!saved)return clone(DEFAULT);
-  if(!saved.quantityFactors)saved.quantityFactors=clone(DEFAULT.quantityFactors);
-  if(!saved.branchRules)saved.branchRules=clone(DEFAULT.branchRules);
-  return saved;
- }catch(e){return clone(DEFAULT)}
-}
+function loadMaster(){try{return JSON.parse(localStorage.getItem(KEY))||clone(DEFAULT)}catch(e){return clone(DEFAULT)}}
 function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
 function history(){try{return JSON.parse(localStorage.getItem(HIST))||[]}catch(e){return[]}}
 function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
@@ -184,7 +181,6 @@ function init(){
  const d=new Date();$("startDate").value=d.toISOString().slice(0,10);
  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
  $("customer").onchange=customerInfo;
- $("branchCount").oninput=customerInfo;
  $("calcBtn").onclick=calculate;
  $("clearHistory").onclick=()=>{if(confirm("Clear all calculation history?")){saveHistory([]);renderHistory()}};
  $("exportHistory").onclick=exportCSV;
@@ -202,101 +198,44 @@ function renderInputs(){
  customerInfo();
 }
 function customerInfo(){
- const name=$("customer").value;
- const branchCount=Number($("branchCount").value||0);
- const c=master.customers.find(x=>x[0]===name);
- const customerLevel=c?Number(c[1]):null;
- const br=getBranchRule(branchCount);
- const branchLevel=br?Number(br.level):null;
- const finalLevel=customerLevel===null?branchLevel:(branchLevel===null?customerLevel:Math.max(customerLevel,branchLevel));
- if(!c){
-  $("difficulty").textContent="—";
-  $("customerBuffer").textContent="—";
- }else{
-  const d=master.difficulty.find(x=>x.level===customerLevel);
-  $("difficulty").textContent=`Level ${d.level} — ${d.name}`;
-  $("customerBuffer").textContent=d.buffer===null?"Discuss in advance":`+${d.buffer} days`;
- }
- $("branchDifficulty").textContent=branchLevel===null?"—":`Level ${branchLevel}`;
- $("finalDifficulty").textContent=finalLevel===null?"—":`Level ${finalLevel}`;
-}
-
-function getBranchRule(count){
- return master.branchRules.find(r=>count>=r.min&&(r.max===null||count<=r.max));
+ const name=$("customer").value, c=master.customers.find(x=>x[0]===name);
+ if(!c){$("difficulty").textContent="—";$("customerBuffer").textContent="—";return}
+ const d=master.difficulty.find(x=>x.level===Number(c[1]));
+ $("difficulty").textContent=`Level ${d.level} — ${d.name}`;
+ $("customerBuffer").textContent=d.buffer===null?"Discuss in advance":`+${d.buffer} days`;
 }
 function getRule(cct){return master.cct.find(r=>cct>=r.min&&(r.max===null||cct<=r.max))}
 function getQtyFactor(qty){return master.quantityFactors.find(r=>qty>=r.min&&(r.max===null||qty<=r.max))}
 function calculate(){
- $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("dateBox").style.display="none";
- const cct=Number($("cct").value),branchCount=Number($("branchCount").value),qty=Number($("qty").value),name=$("customer").value,start=$("startDate").value;
+ $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$('dateBox').style.display="none";
+ const cct=Number($("cct").value),qty=Number($("qty").value),name=$("customer").value,start=$("startDate").value;
  if(!Number.isInteger(cct)||cct<1)return notice("inputNotice","Enter a valid CCT count.","bad");
- if(!Number.isInteger(branchCount)||branchCount<0)return notice("inputNotice","Enter a valid branch count.","bad");
  if(!Number.isInteger(qty)||qty<1)return notice("inputNotice","Enter a valid manufacturing quantity.","bad");
  if(!name)return notice("inputNotice","Select a customer.","bad");
  if(!start)return notice("inputNotice","Select a start date.","bad");
-
- const r=getRule(cct),c=master.customers.find(x=>x[0]===name);
- const customerLevel=Number(c[1]);
- const customerDiff=master.difficulty.find(x=>x.level===customerLevel);
- const br=getBranchRule(branchCount);
- const branchLevel=br?Number(br.level):null;
- const finalLevel=branchLevel===null?customerLevel:Math.max(customerLevel,branchLevel);
- const finalDiff=master.difficulty.find(x=>x.level===finalLevel);
- const qf=getQtyFactor(qty);
+ const r=getRule(cct),c=master.customers.find(x=>x[0]===name),d=master.difficulty.find(x=>x.level===Number(c[1])),qf=getQtyFactor(qty);
  const special=[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)]);
  const specialDays=special.reduce((s,x)=>s+Number(x[1]),0);
-
- $("customerDifficultyResult").textContent=`Level ${customerLevel} — ${customerDiff.name}`;
- $("branchDifficultyResult").textContent=branchLevel===null?"—":`Level ${branchLevel}`;
- $("finalDifficultyResult").textContent=`Level ${finalLevel} — ${finalDiff.name}`;
- $("difficulty").textContent=`Level ${customerLevel} — ${customerDiff.name}`;
- $("branchDifficulty").textContent=`Level ${branchLevel}`;
- $("finalDifficulty").textContent=`Level ${finalLevel} — ${finalDiff.name}`;
-
  $("baseLT").textContent=r.baseDays===null?"Discuss":`${r.baseDays} days (${r.baseWeeks} weeks)`;
  $("drawingLT").textContent=`${r.drawingDays} days`;
- $("difficultyLT").textContent=finalDiff.buffer===null?"Discuss":`+${finalDiff.buffer} days`;
+ $("difficultyLT").textContent=d.buffer===null?"Discuss":`+${d.buffer} days`;
  $("specialLT").textContent=`+${specialDays} days`;
-
- if(r.baseDays===null||finalDiff.buffer===null||!qf){
-  $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";
-  $("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
+ if(r.baseDays===null||d.buffer===null||!qf){
+  $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";$("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
   return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
  }
-
- const preQty=r.baseDays+r.drawingDays+finalDiff.buffer+specialDays;
+ const preQty=r.baseDays+r.drawingDays+d.buffer+specialDays;
  const total=Math.ceil(preQty*Number(qf.factor));
- $("preQtyLT").textContent=`${preQty} days`;
- $("qtyFactor").textContent=`${Number(qf.factor).toFixed(2)}× (${qf.label})`;
- $("totalDays").textContent=`${total} DAYS`;
- $('totalWeeks').textContent=`≈ ${(total/7).toFixed(1)} weeks`;
- $('sumLT').textContent=`${total} days`;
-
- const date=new Date(start+"T00:00:00");
- date.setDate(date.getDate()+total);
- $("etd").textContent=formatDate(date);
- $("dateBox").style.display="block";
-
- notice("resultNotice",`✓ ${name}: Customer L${customerLevel}, Branch L${branchLevel}, Final L${finalLevel}. Qty ${qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
-
- const h=history();
- h.unshift({
-  date:new Date().toISOString(),start,cct,branchCount,qty,qtyFactor:Number(qf.factor),
-  customer:name,
-  customerDifficulty:`L${customerLevel} ${customerDiff.name}`,
-  branchDifficulty:`L${branchLevel}`,
-  difficulty:`L${finalLevel} ${finalDiff.name}`,
-  special:special.map(x=>x[0]).join(", ")||"None",
-  preQtyLT:preQty,lt:total,etd:date.toISOString().slice(0,10)
- });
- saveHistory(h.slice(0,200));
- renderHistory();
+ $("preQtyLT").textContent=`${preQty} days`;$("qtyFactor").textContent=`${Number(qf.factor).toFixed(2)}× (${qf.label})`;
+ $("totalDays").textContent=`${total} DAYS`;$('totalWeeks').textContent=`≈ ${(total/7).toFixed(1)} weeks`;$('sumLT').textContent=`${total} days`;
+ const date=new Date(start+"T00:00:00");date.setDate(date.getDate()+total);
+ $("etd").textContent=formatDate(date);$("dateBox").style.display="block";
+ notice("resultNotice",`✓ ${name}: Level ${d.level} (${d.name}), Qty ${qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
+ const h=history();h.unshift({date:new Date().toISOString(),start,cct,qty,qtyFactor:Number(qf.factor),customer:name,difficulty:`L${d.level} ${d.name}`,special:special.map(x=>x[0]).join(", ")||"None",preQtyLT:preQty,lt:total,etd:date.toISOString().slice(0,10)});saveHistory(h.slice(0,200));renderHistory();
 }
-
 function renderHistory(){
- const h=history();
- if(!h.length){$("historyTable").innerHTML='<div class="empty">No calculations saved yet.</div>';return}
- $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Start</th><th>CCT</th><th>Branches</th><th>Qty</th><th>Customer</th><th>Customer Lvl</th><th>Branch Lvl</th><th>Final Lvl</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${x.start}</td><td>${x.cct}</td><td>${x.branchCount??0}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.customerDifficulty||x.difficulty||"")}</td><td>${esc(x.branchDifficulty||"")}</td><td>${esc(x.difficulty||"")}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td></tr>`).join("")}</tbody></table></div>`;
+ const h=history();if(!h.length){$("historyTable").innerHTML='<div class="empty">No calculations saved yet.</div>';return}
+ $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Start</th><th>CCT</th><th>Qty</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${x.start}</td><td>${x.cct}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td></tr>`).join("")}</tbody></table></div>`;
 }
 function renderMaster(){
  $("cctMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min</th><th>Max</th><th>Base Weeks</th><th>Base Days</th><th>Drawing Days</th></tr></thead><tbody>${master.cct.map((r,i)=>`<tr>
@@ -305,29 +244,10 @@ function renderMaster(){
  $("bufferMaster").innerHTML=`<table><thead><tr><th>Difficulty</th><th>Buffer</th><th>Special Treatment</th><th>Buffer</th></tr></thead><tbody>
 ${master.difficulty.map((d,i)=>`<tr><td>${esc(d.name)} (L${d.level})</td><td><input data-diff="${i}" type="number" value="${d.buffer??""}" placeholder="Discuss"></td>
 ${i===0?`<td rowspan="${master.difficulty.length}">${master.specials.map((s,j)=>`<div style="margin:4px 0"><input data-sp-name="${j}" value="${esc(s[0])}" style="width:58%"> <input data-sp-days="${j}" type="number" value="${s[1]}" style="width:35%"></div>`).join("")}</td><td rowspan="${master.difficulty.length}">days</td>`:""} </tr>`).join("")}</tbody></table>`;
- $("branchMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min Branches</th><th>Max Branches</th><th>Level</th></tr></thead><tbody>${master.branchRules.map((r,i)=>`<tr>
-<td>${esc(r.label)}</td>
-<td><input data-br="min" data-i="${i}" type="number" min="0" value="${r.min}"></td>
-<td><input data-br="max" data-i="${i}" type="number" min="0" value="${r.max??""}"></td>
-<td><input data-br="level" data-i="${i}" type="number" min="1" max="5" value="${r.level}"></td>
-</tr>`).join("")}</tbody></table>`;
  $("qtyFactorMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min Qty</th><th>Max Qty</th><th>Factor</th></tr></thead><tbody>${master.quantityFactors.map((r,i)=>`<tr><td>${esc(r.label)}</td><td><input data-qf="min" data-i="${i}" type="number" min="1" value="${r.min}"></td><td><input data-qf="max" data-i="${i}" type="number" min="1" value="${r.max??""}"></td><td><input data-qf="factor" data-i="${i}" type="number" min="0.01" step="0.01" value="${Number(r.factor).toFixed(2)}"></td></tr>`).join("")}</tbody></table>`;
  bindMaster();
 }
-function bindBranchMaster(){
- document.querySelectorAll("[data-br]").forEach(el=>el.onchange=()=>{
-  const i=+el.dataset.i,r=master.branchRules[i];
-  r.min=+document.querySelector(`[data-br=min][data-i="${i}"]`).value;
-  const maxVal=document.querySelector(`[data-br=max][data-i="${i}"]`).value;
-  r.max=maxVal===""?null:+maxVal;
-  r.level=+document.querySelector(`[data-br=level][data-i="${i}"]`).value;
-  r.label=r.max===null?`>${r.min-1}`:`${r.min}–${r.max}`;
-  saveMaster();renderAll();
- });
-}
-
 function bindMaster(){
- bindBranchMaster();
  document.querySelectorAll("[data-m]").forEach(el=>el.onchange=()=>{const i=+el.dataset.i,r=master.cct[i],v=el.value;r.min=+document.querySelector(`[data-m=cmin][data-i="${i}"]`).value;r.max=(document.querySelector(`[data-m=cmax][data-i="${i}"]`).value||"")*1||null;r.baseWeeks=(document.querySelector(`[data-m=weeks][data-i="${i}"]`).value||"")*1||null;r.baseDays=(document.querySelector(`[data-m=days][data-i="${i}"]`).value||"")*1||null;r.drawingDays=+document.querySelector(`[data-m=draw][data-i="${i}"]`).value;saveMaster();renderAll()});
  document.querySelectorAll("[data-cust]").forEach(el=>el.onchange=()=>{master.customers[+el.dataset.cust][1]=+el.value;saveMaster();renderInputs()});
  document.querySelectorAll("[data-diff]").forEach(el=>el.onchange=()=>{master.difficulty[+el.dataset.diff].buffer=el.value===""?null:+el.value;saveMaster();renderAll()});
@@ -336,8 +256,8 @@ function bindMaster(){
  document.querySelectorAll("[data-qf]").forEach(el=>el.onchange=()=>{const i=+el.dataset.i,r=master.quantityFactors[i];r.min=+document.querySelector(`[data-qf=min][data-i="${i}"]`).value;r.max=(document.querySelector(`[data-qf=max][data-i="${i}"]`).value||"")*1||null;r.factor=+document.querySelector(`[data-qf=factor][data-i="${i}"]`).value||1;saveMaster();renderAll()});
 }
 function exportMaster(){download("manufacturing_lt_master.json",JSON.stringify(master,null,2),"application/json")}
-function importMaster(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.cct||!x.customers||!x.difficulty||!x.specials)throw Error();if(!x.quantityFactors)x.quantityFactors=clone(DEFAULT.quantityFactors);if(!x.branchRules)x.branchRules=clone(DEFAULT.branchRules);master=x;saveMaster();renderAll();alert("Master data imported.")}catch(_){alert("Invalid master data file.")}};r.readAsText(f)}
-function exportCSV(){const h=history();if(!h.length)return alert("No history to export.");const rows=[["Calculated","Start","CCT","Branch Count","Qty","Customer","Customer Difficulty","Branch Difficulty","Final Difficulty","Special","Qty Factor","Pre-Qty LT Days","LT Days","ETD"],...h.map(x=>[x.date,x.start,x.cct,x.branchCount??0,x.qty??1,x.customer,x.customerDifficulty||"",x.branchDifficulty||"",x.difficulty||"",x.special,x.qtyFactor??1,x.preQtyLT??x.lt,x.lt,x.etd])];download("manufacturing_lt_history.csv",rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n"),"text/csv")}
+function importMaster(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.cct||!x.customers||!x.difficulty||!x.specials)throw Error();if(!x.quantityFactors)x.quantityFactors=clone(DEFAULT.quantityFactors);master=x;saveMaster();renderAll();alert("Master data imported.")}catch(_){alert("Invalid master data file.")}};r.readAsText(f)}
+function exportCSV(){const h=history();if(!h.length)return alert("No history to export.");const rows=[["Calculated","Start","CCT","Qty","Customer","Difficulty","Special","Qty Factor","Pre-Qty LT Days","LT Days","ETD"],...h.map(x=>[x.date,x.start,x.cct,x.qty??1,x.customer,x.difficulty,x.special,x.qtyFactor??1,x.preQtyLT??x.lt,x.lt,x.etd])];download("manufacturing_lt_history.csv",rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n"),"text/csv")}
 function download(name,data,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 function notice(id,msg,cls){$(id).innerHTML=`<div class="notice ${cls}">${msg}</div>`}
 function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}

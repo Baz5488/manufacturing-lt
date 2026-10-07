@@ -24,15 +24,6 @@ Static PWA for GitHub Pages.
 - Current ETD calculation uses calendar days.
 
 
-### V2.2 — Branch Count Difficulty
-Branch Count is now an input to the calculator.
-
-Default Branch Difficulty:
-- 0–10 branches → Level 1
-- 11–30 branches → Level 2
-- 31–60 branches → Level 3
-- >60 branches → Level 4
-
-Final Difficulty Level = the higher of Customer Difficulty Level and Branch Difficulty Level.
-
-Branch rules are editable under Master Data.
+## V2.3 update
+- Added **Back to Top** navigation for History and Master Data pages.
+- Bumped the service-worker cache to `mfg-lt-v2-3`.
