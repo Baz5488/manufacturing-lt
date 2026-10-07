@@ -120,7 +120,8 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="card" style="margin-top:14px">
 <h2>Master Data Backup</h2>
 <div class="actions"><button class="secondary" id="exportMaster">Export JSON</button><button class="secondary" id="importMasterBtn">Import JSON</button><input id="importMaster" type="file" accept=".json" style="display:none"></div>
-<button class="danger" id="resetMaster">Reset Master Data to Default</button>
+<div class="actions"><button class="secondary" id="setDefaultMaster">Set Current Data as Default</button><button class="danger" id="resetMaster">Reset Master Data to Default</button><button class="secondary" id="clearDefaultMaster">Restore Factory Default</button></div>
+<p class="muted" id="defaultStatus"></p>
 </div>
 
 <div style="text-align:center"><a class="back-to-top" href="#pageTop">↑ Back to Top</a></div>
@@ -136,7 +137,7 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">Manufacturing LT Calculator v2.3 • Offline PWA</div>
+<div class="footer">Manufacturing LT Calculator v2.4 • Offline PWA</div>
 </div>
 
 <script>
@@ -167,12 +168,15 @@ const DEFAULT={
   {label:">100 pcs",min:101,max:null,factor:1.50}
  ]
 };
-const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history";
+const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
 let master=loadMaster();
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
-function loadMaster(){try{return JSON.parse(localStorage.getItem(KEY))||clone(DEFAULT)}catch(e){return clone(DEFAULT)}}
+function loadMaster(){try{return JSON.parse(localStorage.getItem(KEY))||getDefault()}catch(e){return getDefault()}}
 function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
+function userDefault(){try{return JSON.parse(localStorage.getItem(DEFKEY))}catch(e){return null}}
+function getDefault(){return userDefault()?.master||clone(DEFAULT)}
+function renderDefaultStatus(){const u=userDefault();$("defaultStatus").textContent=u?`Default: custom data saved ${formatDate(new Date(u.saved))}. Reset uses this data.`:"Default: factory data. Reset uses the built-in rules.";$("clearDefaultMaster").style.display=u?"":"none"}
 function history(){try{return JSON.parse(localStorage.getItem(HIST))||[]}catch(e){return[]}}
 function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
 
@@ -187,8 +191,10 @@ function init(){
  $("exportMaster").onclick=exportMaster;
  $("importMasterBtn").onclick=()=>$("importMaster").click();
  $("importMaster").onchange=importMaster;
- $("resetMaster").onclick=()=>{if(confirm("Reset all master data to default?")){master=clone(DEFAULT);saveMaster();renderAll()}};
- renderAll(); renderHistory();
+ $("resetMaster").onclick=()=>{if(confirm(userDefault()?"Reset all master data to your saved default?":"Reset all master data to factory default?")){master=getDefault();saveMaster();renderAll()}};
+ $("setDefaultMaster").onclick=()=>{if(confirm("Save the current master data as the default? Reset will restore this data from now on.")){localStorage.setItem(DEFKEY,JSON.stringify({saved:new Date().toISOString(),master}));renderDefaultStatus();alert("Current master data saved as default.")}};
+ $("clearDefaultMaster").onclick=()=>{if(confirm("Remove the saved custom default and reset master data to the factory default?")){localStorage.removeItem(DEFKEY);master=clone(DEFAULT);saveMaster();renderAll();renderDefaultStatus()}};
+ renderAll(); renderHistory(); renderDefaultStatus();
 }
 function showTab(id){document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id))}
 function renderAll(){renderInputs();renderMaster()}
