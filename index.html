@@ -127,9 +127,9 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 </div>
 <div class="card" style="margin-top:14px">
 <h2>Master Data Backup</h2>
-<div class="actions"><button class="secondary" id="exportMaster">Export JSON</button><button class="secondary" id="importMasterBtn">Import JSON</button><input id="importMaster" type="file" accept=".json" style="display:none"></div>
-<div class="actions"><button class="secondary" id="setDefaultMaster">Set Current Data as Default</button><button class="danger" id="resetMaster">Reset Master Data to Default</button><button class="secondary" id="clearDefaultMaster">Restore Factory Default</button></div>
-<p class="muted" id="defaultStatus"></p>
+<div class="actions"><button id="setDefaultMasterBtn" type="button" class="secondary">★ Set Current Data as Default</button>
+<button class="secondary" id="exportMaster">Export JSON</button><button class="secondary" id="importMasterBtn">Import JSON</button><input id="importMaster" type="file" accept=".json" style="display:none"></div>
+<button class="danger" id="resetMaster">Reset Master Data to Default</button>
 </div>
 
 <div style="text-align:center"><a class="back-to-top" href="#pageTop">↑ Back to Top</a></div>
@@ -183,7 +183,7 @@ const DEFAULT={
   {label:">100 pcs",min:101,max:null,factor:1.50}
  ]
 };
-const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
+const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history";
 let master=loadMaster();
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -193,6 +193,8 @@ function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
 function userDefault(){try{return JSON.parse(localStorage.getItem(DEFKEY))}catch(e){return null}}
 function getDefault(){return normalize(userDefault()?.master||clone(DEFAULT))}
 function renderDefaultStatus(){const u=userDefault();$("defaultStatus").textContent=u?`Default: custom data saved ${formatDate(new Date(u.saved))}. Reset uses this data.`:"Default: factory data. Reset uses the built-in rules.";$("clearDefaultMaster").style.display=u?"":"none"}
+function loadMaster(){try{return JSON.parse(localStorage.getItem(KEY))||clone(DEFAULT)}catch(e){return clone(DEFAULT)}}
+function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
 function history(){try{return JSON.parse(localStorage.getItem(HIST))||[]}catch(e){return[]}}
 function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
 
@@ -208,10 +210,8 @@ function init(){
  $("exportMaster").onclick=exportMaster;
  $("importMasterBtn").onclick=()=>$("importMaster").click();
  $("importMaster").onchange=importMaster;
- $("resetMaster").onclick=()=>{if(confirm(userDefault()?"Reset all master data to your saved default?":"Reset all master data to factory default?")){master=getDefault();saveMaster();renderAll()}};
- $("setDefaultMaster").onclick=()=>{if(confirm("Save the current master data as the default? Reset will restore this data from now on.")){localStorage.setItem(DEFKEY,JSON.stringify({saved:new Date().toISOString(),master}));renderDefaultStatus();alert("Current master data saved as default.")}};
- $("clearDefaultMaster").onclick=()=>{if(confirm("Remove the saved custom default and reset master data to the factory default?")){localStorage.removeItem(DEFKEY);master=clone(DEFAULT);saveMaster();renderAll();renderDefaultStatus()}};
- renderAll(); renderHistory(); renderDefaultStatus();
+ $("resetMaster").onclick=()=>{if(confirm("Reset all master data to default?")){master=clone(DEFAULT);saveMaster();renderAll()}};
+ renderAll(); renderHistory();
 }
 function showTab(id){document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id))}
 function renderAll(){renderInputs();renderMaster()}
@@ -301,6 +301,53 @@ function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 init();
+
+function setCurrentDataAsDefault(){
+  try{
+    const current = (typeof master !== 'undefined') ? master :
+      ((typeof MASTER !== 'undefined') ? MASTER : null);
+    if(!current){ alert('Unable to locate current Master Data.'); return; }
+    localStorage.setItem('mfg_ltc_user_default_master', JSON.stringify(current));
+    alert('Current Master Data saved as default.');
+  }catch(e){ console.error(e); alert('Could not save default Master Data.'); }
+}
+
+
+(function(){
+  function bindSetDefault(){
+    const b=document.getElementById('setDefaultMasterBtn');
+    if(b && !b.dataset.bound){ b.dataset.bound='1'; b.addEventListener('click',setCurrentDataAsDefault); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindSetDefault);
+  else bindSetDefault();
+})();
+
+
+(function(){
+  function bindResetDefault(){
+    const b=document.getElementById('resetMaster');
+    if(!b || b.dataset.mfgLtcResetDefaultHook) return;
+    b.dataset.mfgLtcResetDefaultHook='1';
+    b.addEventListener('click',function(e){
+      const raw=localStorage.getItem('mfg_ltc_user_default_master');
+      if(!raw) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      try{
+        const saved=JSON.parse(raw);
+        if(typeof master!=='undefined') master=saved;
+        else if(typeof MASTER!=='undefined') MASTER=saved;
+        else { alert('Unable to restore saved default.'); return; }
+        if(typeof saveMaster==='function') saveMaster();
+        if(typeof renderMaster==='function') renderMaster();
+        if(typeof render==='function') render();
+        alert('Saved default Master Data restored.');
+      }catch(err){ console.error(err); alert('Could not restore saved default.'); }
+    },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindResetDefault);
+  else bindResetDefault();
+})();
+
 </script>
 </body>
 </html>
