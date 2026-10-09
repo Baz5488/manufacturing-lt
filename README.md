@@ -33,3 +33,11 @@ Static PWA for GitHub Pages.
 - Added **Restore Factory Default** to remove the saved custom default and go back to the built-in rules.
 - The custom default is stored in this browser only (localStorage). Use Export JSON to share it with other devices.
 - Bumped the service-worker cache to `mfg-lt-v2-4`.
+
+## V2.5 update
+- Added **Branch Count** input to the calculator.
+- Branch count maps to a level (0–10 → L1, 11–30 → L2, 31–60 → L3, >60 → L4), editable in Master Data → Branch Count Levels.
+- The applied difficulty level is the **higher** of the customer level and the branch count level; its buffer is used in the LT.
+- History and CSV export now include branch count and branch level.
+- Older saved/exported master data without branch levels gets the default branch levels automatically.
+- Bumped the service-worker cache to `mfg-lt-v2-5`.
