@@ -10,6 +10,7 @@ Static PWA for GitHub Pages.
    - `manifest.json`
    - `sw.js`
    - `icon.svg`
+   - `lt-core.js`
 3. In GitHub: **Settings → Pages**.
 4. Under **Build and deployment**, select **Deploy from a branch**.
 5. Select `main` and `/ (root)`, then Save.
@@ -41,3 +42,24 @@ Static PWA for GitHub Pages.
 - History and CSV export now include branch count and branch level.
 - Older saved/exported master data without branch levels gets the default branch levels automatically.
 - Bumped the service-worker cache to `mfg-lt-v2-5`.
+
+## V2.6 update — BOM Analyzer integration prep
+- Moved the master-data defaults and the lead-time formula into **`lt-core.js`** (no UI code), so the calculator and a future BOM analyzer / drawing-recognition tool share one formula. Results are unchanged (checked against 504 input combinations).
+- **Input contract** `manufacturing-lt/input@1` (see the About tab for the full example and a downloadable sample):
+  `customer`, `wireCount` (= CCT count), `branchCount`, `qty`, `startDate`, `specials`, plus optional `source` (`tool`, `drawingNo`, `revision`, `detected`, `bom`).
+- **Load from BOM / Drawing JSON** button on the Calculator tab, and pre-fill by link, e.g.
+  `index.html?wireCount=180&branchCount=25&customer=KOBELCO&qty=20&specials=Marker,Braiding&drawingNo=WH-12345`.
+  Values are filled in only; a person checks them and presses Calculate. Unknown customers or special treatments are shown as warnings.
+- Pre-filled fields are tagged **auto**, and change to **edited** when someone corrects them. History and CSV record the drawing number and input source (manual / auto / edited fields).
+- BOM part lead times are shown (longest part LT) but **not yet added** to the LT — the rule for combining material and manufacturing LT is still to be decided.
+- Fixed: the default start date and the ETD saved in History could be one day early in time zones ahead of UTC (e.g. Japan, Indonesia).
+- Editing Master Data no longer clears the selected customer and special treatments on the Calculator tab.
+- Bumped the service-worker cache to `mfg-lt-v2-6` and added `lt-core.js` to the offline cache.
+
+Using the formula from another app:
+```js
+// <script src="lt-core.js"></script>  or  const LTCore = require("./lt-core.js")
+const master = LTCore.normalizeMaster(LTCore.clone(LTCore.DEFAULT_MASTER));
+const { inputs, warnings } = LTCore.parseInput(payload, master);
+const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review" | "error", totalLT, etd, ... }
+```

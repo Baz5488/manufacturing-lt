@@ -40,6 +40,11 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
   box-shadow:0 2px 6px rgba(0,0,0,.06);
 }
 .back-to-top:hover{background:#f3f7fc}
+.source{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe;font-weight:400;display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+button.small{padding:6px 10px;font-size:12px;flex:0 0 auto}
+.auto-badge{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;vertical-align:middle}
+.auto-badge.edited{background:var(--amberbg);color:var(--amber)}
+code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:10px;overflow:auto;font-size:12px}
 
 </style>
 </head>
@@ -59,6 +64,8 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <div class="grid">
 <div class="card">
 <h2>Calculation Inputs</h2>
+<div class="actions"><button class="secondary" id="importInputBtn">Load from BOM / Drawing JSON</button><input id="importInput" type="file" accept=".json" style="display:none"></div>
+<div id="sourceBox" class="notice source" style="display:none;margin:0 0 14px"><div id="sourceText"></div><button class="secondary small" id="clearSource">Dismiss</button></div>
 <div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branch" type="number" min="0" step="1" placeholder="e.g. 25"></div></div>
 <div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div>
 <div class="field"><label>Customer</label><select id="customer"></select></div>
@@ -141,53 +148,40 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 <p><b>Manufacturing LT = (Base LT + Drawing Breakdown LT + Difficulty Buffer + Special Treatment Buffer) × Quantity Factor</b></p>
 <p><b>Applied Difficulty Level = higher of Customer Level and Branch Count Level</b></p>
 <p><b>ETD = Manufacturing Start Date + Total Manufacturing LT</b></p>
-<p class="muted">Version 2.5. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
+<p class="muted">Version 2.6. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
+<h2>Integration (BOM Analyzer / Drawing Recognition)</h2>
+<p>Upstream tools can pre-fill the calculator. Values are filled in only; a person reviews them and presses Calculate. Wire count is used as the CCT count.</p>
+<p><b>1. Input JSON</b> — use <b>Load from BOM / Drawing JSON</b> on the Calculator tab. <a href="#" id="sampleInput">Download a sample file</a>.</p>
+<pre>{
+  "schema": "manufacturing-lt/input@1",
+  "customer": "KOBELCO",
+  "wireCount": 180,
+  "branchCount": 25,
+  "qty": 20,
+  "startDate": "2026-10-09",
+  "specials": ["Marker", "Braiding"],
+  "source": {
+    "tool": "BOM Analyzer", "drawingNo": "WH-12345", "revision": "B",
+    "detected": ["wireCount", "branchCount", "specials"],
+    "bom": [{ "partNo": "CN-001", "description": "Connector 12P", "qty": 2, "leadTimeDays": 21 }]
+  }
+}</pre>
+<p><b>2. Link</b> — e.g. <code>index.html?wireCount=180&amp;branchCount=25&amp;customer=KOBELCO&amp;qty=20&amp;specials=Marker,Braiding&amp;drawingNo=WH-12345</code></p>
+<p><b>3. Shared formula</b> — <code>lt-core.js</code> exposes <code>LTCore.parseInput(payload, master)</code> and <code>LTCore.calcLeadTime(inputs, master)</code> for use in another app.</p>
+<p class="muted">BOM part lead times are shown but not added to the LT yet; the rule for combining material and manufacturing LT is still to be decided.</p>
 <h2>Deployment</h2>
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">Manufacturing LT Calculator v2.5 • Offline PWA</div>
+<div class="footer">Manufacturing LT Calculator v2.6 • Offline PWA</div>
 </div>
 
+<script src="lt-core.js?v=2.6"></script>
 <script>
-const DEFAULT={
- cct:[
-  {label:"1–50",min:1,max:50,baseWeeks:4,baseDays:28,drawingDays:3},
-  {label:"51–100",min:51,max:100,baseWeeks:6,baseDays:42,drawingDays:5},
-  {label:"101–300",min:101,max:300,baseWeeks:8,baseDays:56,drawingDays:7},
-  {label:"301–500",min:301,max:500,baseWeeks:10,baseDays:70,drawingDays:10},
-  {label:"501–1000",min:501,max:1000,baseWeeks:12,baseDays:84,drawingDays:15},
-  {label:">1000",min:1001,max:null,baseWeeks:null,baseDays:null,drawingDays:20}
- ],
- customers:[
- ["HITACHI",2],["KOBELCO",1],["SUMITOMO",2],["YAMATO",3],["CATERPILLAR",1],["TAKEUCHI",2],
- ["KOMATSU",4],["MITSUBISHI THERMAL",3],["SAKAI",2],["TOHATSU",2],["GAC",2],["KYOEISHA",2],
- ["KATO",3],["YAMABIKO",3],["Mitsubishi Logi",2],["GIKEN",3],["HSC",3],["KUBOTA",3]
- ],
- difficulty:[
-  {level:1,name:"Easy",buffer:0},{level:2,name:"Medium",buffer:2},{level:3,name:"Hard",buffer:5},
-  {level:4,name:"Very Hard",buffer:7},{level:5,name:"Extremely Hard",buffer:null}
- ],
- specials:[["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2]],
- branchLevels:[
-  {label:"0–10",min:0,max:10,level:1},
-  {label:"11–30",min:11,max:30,level:2},
-  {label:"31–60",min:31,max:60,level:3},
-  {label:">60",min:61,max:null,level:4}
- ],
- quantityFactors:[
-  {label:"1 pc",min:1,max:1,factor:1.00},
-  {label:"2–10 pcs",min:2,max:10,factor:1.10},
-  {label:"11–50 pcs",min:11,max:50,factor:1.20},
-  {label:"51–100 pcs",min:51,max:100,factor:1.30},
-  {label:">100 pcs",min:101,max:null,factor:1.50}
- ]
-};
+const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
 let master=loadMaster();
 
-function clone(x){return JSON.parse(JSON.stringify(x))}
-function normalize(m){if(!m.quantityFactors)m.quantityFactors=clone(DEFAULT.quantityFactors);if(!m.branchLevels)m.branchLevels=clone(DEFAULT.branchLevels);return m}
 function loadMaster(){try{return normalize(JSON.parse(localStorage.getItem(KEY))||getDefault())}catch(e){return getDefault()}}
 function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
 function userDefault(){try{return JSON.parse(localStorage.getItem(DEFKEY))}catch(e){return null}}
@@ -198,11 +192,17 @@ function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
 
 const $=id=>document.getElementById(id);
 function init(){
- const d=new Date();$("startDate").value=d.toISOString().slice(0,10);
+ $("startDate").value=localISODate(new Date());
  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
  $("customer").onchange=customerInfo;
  $("branch").oninput=customerInfo;
  $("calcBtn").onclick=calculate;
+ $("importInputBtn").onclick=()=>$("importInput").click();
+ $("importInput").onchange=importInputFile;
+ $("clearSource").onclick=clearImportSource;
+ $("sampleInput").onclick=e=>{e.preventDefault();download("manufacturing_lt_input_sample.json",JSON.stringify(SAMPLE_INPUT,null,2),"application/json")};
+ for(const id of Object.values(FIELD_IDS))$(id).addEventListener("input",()=>markEdited(id));
+ $("specials").addEventListener("change",()=>markEdited("specials"));
  $("clearHistory").onclick=()=>{if(confirm("Clear all calculation history?")){saveHistory([]);renderHistory()}};
  $("exportHistory").onclick=exportCSV;
  $("exportMaster").onclick=exportMaster;
@@ -212,15 +212,18 @@ function init(){
  $("setDefaultMaster").onclick=()=>{if(confirm("Save the current master data as the default? Reset will restore this data from now on.")){localStorage.setItem(DEFKEY,JSON.stringify({saved:new Date().toISOString(),master}));renderDefaultStatus();alert("Current master data saved as default.")}};
  $("clearDefaultMaster").onclick=()=>{if(confirm("Remove the saved custom default and reset master data to the factory default?")){localStorage.removeItem(DEFKEY);master=clone(DEFAULT);saveMaster();renderAll();renderDefaultStatus()}};
  renderAll(); renderHistory(); renderDefaultStatus();
+ prefillFromURL();
 }
 function showTab(id){document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id))}
 function renderAll(){renderInputs();renderMaster()}
 function renderInputs(){
+ const keepCustomer=$("customer").value,keepSpecials=new Set([...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)]?.[0]));
  $("customer").innerHTML='<option value="">-- Select customer --</option>'+master.customers.map(x=>`<option>${esc(x[0])}</option>`).join("");
- $("specials").innerHTML=master.specials.map((x,i)=>`<label class="check"><input type="checkbox" data-i="${i}"> ${esc(x[0])} <span class="muted">(+${x[1]} days)</span></label>`).join("");
+ $("specials").innerHTML=master.specials.map((x,i)=>`<label class="check"><input type="checkbox" data-i="${i}" ${keepSpecials.has(x[0])?"checked":""}> ${esc(x[0])} <span class="muted">(+${x[1]} days)</span></label>`).join("");
+ if(master.customers.some(x=>x[0]===keepCustomer))$("customer").value=keepCustomer;
  customerInfo();
 }
-function getBranchLevel(n){return master.branchLevels.find(r=>n>=r.min&&(r.max===null||n<=r.max))}
+function getBranchLevel(n){return LTCore.findBranchLevel(master,n)}
 function branchInput(){const v=$("branch").value;if(v==="")return null;const n=Number(v);return Number.isInteger(n)&&n>=0?n:NaN}
 function diffName(level){const d=master.difficulty.find(x=>x.level===Number(level));return d?`Level ${d.level} — ${d.name}`:`Level ${level}`}
 function customerInfo(){
@@ -233,44 +236,93 @@ function customerInfo(){
  $("appliedLevel").textContent=`Level ${d.level} — ${d.name}`;
  $("customerBuffer").textContent=d.buffer===null?"Discuss in advance":`+${d.buffer} days`;
 }
-function getRule(cct){return master.cct.find(r=>cct>=r.min&&(r.max===null||cct<=r.max))}
-function getQtyFactor(qty){return master.quantityFactors.find(r=>qty>=r.min&&(r.max===null||qty<=r.max))}
+function readInputs(){
+ const n=id=>{const v=$(id).value;return v===""?null:Number(v)};
+ return {cct:n("cct"),branch:n("branch"),qty:n("qty"),customer:$("customer").value,startDate:$("startDate").value,
+  specials:[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)][0])};
+}
 function calculate(){
  $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$('dateBox').style.display="none";
- const cct=Number($("cct").value),qty=Number($("qty").value),name=$("customer").value,start=$("startDate").value;
- if(!Number.isInteger(cct)||cct<1)return notice("inputNotice","Enter a valid CCT count.","bad");
- const branch=branchInput();
- if(!Number.isInteger(branch))return notice("inputNotice","Enter a valid branch count (0 or more).","bad");
- if(!Number.isInteger(qty)||qty<1)return notice("inputNotice","Enter a valid manufacturing quantity.","bad");
- if(!name)return notice("inputNotice","Select a customer.","bad");
- if(!start)return notice("inputNotice","Select a start date.","bad");
- const r=getRule(cct),c=master.customers.find(x=>x[0]===name),bl=getBranchLevel(branch),qf=getQtyFactor(qty);
- if(!bl)return notice("inputNotice","No branch count level matches this branch count. Check Master Data.","bad");
- const custLevel=Number(c[1]),appliedLevel=Math.max(custLevel,Number(bl.level)),d=master.difficulty.find(x=>x.level===appliedLevel);
- if(!d)return notice("inputNotice",`Difficulty level ${appliedLevel} is not defined in Master Data.`,"bad");
- const source=appliedLevel===custLevel&&appliedLevel===Number(bl.level)?"customer & branch":appliedLevel===custLevel?"customer":"branch count";
- const special=[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)]);
- const specialDays=special.reduce((s,x)=>s+Number(x[1]),0);
- $("baseLT").textContent=r.baseDays===null?"Discuss":`${r.baseDays} days (${r.baseWeeks} weeks)`;
- $("drawingLT").textContent=`${r.drawingDays} days`;
- $("difficultyLT").textContent=d.buffer===null?`Discuss (L${d.level}, ${source})`:`+${d.buffer} days (L${d.level}, ${source})`;
- $("specialLT").textContent=`+${specialDays} days`;
- if(r.baseDays===null||d.buffer===null||!qf){
+ const r=LTCore.calcLeadTime(readInputs(),master);
+ if(r.status==="error")return notice("inputNotice",esc(r.errors[0]),"bad");
+ const rule=r.cctRule,d=r.difficulty,qf=r.qtyFactor;
+ $("baseLT").textContent=rule.baseDays===null?"Discuss":`${rule.baseDays} days (${rule.baseWeeks} weeks)`;
+ $("drawingLT").textContent=`${rule.drawingDays} days`;
+ $("difficultyLT").textContent=d.buffer===null?`Discuss (L${d.level}, ${r.levelSource})`:`+${d.buffer} days (L${d.level}, ${r.levelSource})`;
+ $("specialLT").textContent=`+${r.specialDays} days`;
+ if(r.status==="review"){
   $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";$("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
   return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
  }
- const preQty=r.baseDays+r.drawingDays+d.buffer+specialDays;
- const total=Math.ceil(preQty*Number(qf.factor));
- $("preQtyLT").textContent=`${preQty} days`;$("qtyFactor").textContent=`${Number(qf.factor).toFixed(2)}× (${qf.label})`;
+ const total=r.totalLT;
+ $("preQtyLT").textContent=`${r.preQtyLT} days`;$("qtyFactor").textContent=`${Number(qf.factor).toFixed(2)}× (${qf.label})`;
  $("totalDays").textContent=`${total} DAYS`;$('totalWeeks').textContent=`≈ ${(total/7).toFixed(1)} weeks`;$('sumLT').textContent=`${total} days`;
- const date=new Date(start+"T00:00:00");date.setDate(date.getDate()+total);
- $("etd").textContent=formatDate(date);$("dateBox").style.display="block";
- notice("resultNotice",`✓ ${name}: customer L${custLevel}, branch ${branch} → L${bl.level}, applied Level ${d.level} (${d.name}), Qty ${qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
- const h=history();h.unshift({date:new Date().toISOString(),start,cct,branch,branchLevel:Number(bl.level),qty,qtyFactor:Number(qf.factor),customer:name,difficulty:`L${d.level} ${d.name}`,special:special.map(x=>x[0]).join(", ")||"None",preQtyLT:preQty,lt:total,etd:date.toISOString().slice(0,10)});saveHistory(h.slice(0,200));renderHistory();
+ $("etd").textContent=formatDate(new Date(r.etd+"T00:00:00"));$("dateBox").style.display="block";
+ notice("resultNotice",`✓ ${esc(r.customer)}: customer L${r.customerLevel}, branch ${r.branch} → L${r.branchLevel}, applied Level ${d.level} (${esc(d.name)}), Qty ${r.qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
+ const src=sourceSummary();
+ const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:r.specials.join(", ")||"None",preQtyLT:r.preQtyLT,lt:total,etd:r.etd,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
+}
+
+// ---- Prefill from an upstream tool (URL parameters or input JSON) ----
+const FIELD_IDS={wireCount:"cct",branchCount:"branch",qty:"qty",customer:"customer",startDate:"startDate"};
+const SAMPLE_INPUT={schema:LTCore.INPUT_SCHEMA,customer:"KOBELCO",wireCount:180,branchCount:25,qty:20,startDate:"2026-10-09",specials:["Marker","Braiding"],
+ source:{tool:"BOM Analyzer",drawingNo:"WH-12345",revision:"B",detected:["wireCount","branchCount","specials"],bom:[{partNo:"CN-001",description:"Connector 12P",qty:2,leadTimeDays:21}]}};
+let importSource=null;
+function prefillFromURL(){
+ const q=new URLSearchParams(location.search);if(![...q.keys()].length)return;
+ const g=(...k)=>{for(const x of k)if(q.has(x))return q.get(x)};
+ const payload={customer:g("customer"),wireCount:g("wireCount","cct"),branchCount:g("branchCount","branch"),qty:g("qty"),startDate:g("startDate","start"),specials:g("specials"),
+  source:{tool:g("tool")||"URL",drawingNo:g("drawingNo","drawing"),revision:g("revision","rev")}};
+ for(const k of Object.keys(payload))if(payload[k]===undefined)delete payload[k];
+ const detected=g("detected");payload.source.detected=detected?detected.split(","):["wireCount","branchCount","qty","customer","startDate","specials"].filter(k=>k in payload);
+ applyInput(payload);
+}
+function importInputFile(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{applyInput(JSON.parse(rd.result))}catch(_){notice("inputNotice","Invalid input JSON file.","bad")}finally{e.target.value=""}};rd.readAsText(f)}
+function applyInput(payload){
+ const {inputs,warnings}=LTCore.parseInput(payload,master);
+ const filled=[];
+ const set=(key,val)=>{if(val===null||val===undefined)return;$(FIELD_IDS[key]).value=String(val);filled.push(key)};
+ if(payload.customer!==undefined&&!inputs.customer)$("customer").value="";
+ set("wireCount",inputs.cct);set("branchCount",inputs.branch);set("qty",inputs.qty);set("customer",inputs.customer);set("startDate",inputs.startDate);
+ if(payload.specials!==undefined){document.querySelectorAll("#specials input").forEach(x=>x.checked=inputs.specials.includes(master.specials[Number(x.dataset.i)][0]));filled.push("specials")}
+ const src=inputs.source||{};
+ const detected=new Set((Array.isArray(src.detected)?src.detected:filled).filter(k=>filled.includes(k)));
+ importSource={tool:src.tool||"Imported JSON",drawingNo:src.drawingNo||"",revision:src.revision||"",bom:Array.isArray(src.bom)?src.bom:[],detected,edited:new Set()};
+ customerInfo();renderSource();
+ $("inputNotice").innerHTML="";
+ if(warnings.length)notice("inputNotice","⚠️ "+warnings.map(esc).join("<br>"),"warn");
+}
+function markEdited(id){
+ if(!importSource)return;
+ const key=id==="specials"?"specials":Object.keys(FIELD_IDS).find(k=>FIELD_IDS[k]===id);
+ if(key&&importSource.detected.has(key)&&!importSource.edited.has(key)){importSource.edited.add(key);renderSource()}
+}
+function renderSource(){
+ document.querySelectorAll(".auto-badge").forEach(x=>x.remove());
+ const box=$("sourceBox");
+ if(!importSource){box.style.display="none";return}
+ const labels={wireCount:"Wire count (CCT)",branchCount:"Branch count",qty:"Qty",customer:"Customer",startDate:"Start date",specials:"Special treatment"};
+ for(const k of importSource.detected){
+  const el=k==="specials"?$("specials"):$(FIELD_IDS[k]);
+  const lab=el.closest(".field")?.querySelector("label");
+  if(lab)lab.insertAdjacentHTML("beforeend",importSource.edited.has(k)?' <span class="auto-badge edited">edited</span>':' <span class="auto-badge">auto</span>');
+ }
+ const bomLT=importSource.bom.map(x=>Number(x.leadTimeDays)).filter(Number.isFinite);
+ box.style.display="block";
+ $("sourceText").innerHTML=`<b>Loaded from ${esc(importSource.tool)}</b>${importSource.drawingNo?` — drawing ${esc(importSource.drawingNo)}${importSource.revision?` rev ${esc(importSource.revision)}`:""}`:""}<br>
+ Auto-detected: ${[...importSource.detected].map(k=>labels[k]).join(", ")||"none"}${importSource.edited.size?` · Edited by hand: ${[...importSource.edited].map(k=>labels[k]).join(", ")}`:""}
+ ${importSource.bom.length?`<br>BOM: ${importSource.bom.length} lines${bomLT.length?`, longest part LT ${Math.max(...bomLT)} days (not included in the LT yet)`:""}`:""}`;
+}
+function clearImportSource(){importSource=null;renderSource()}
+function sourceSummary(){
+ if(!importSource)return{drawingNo:"",text:"Manual"};
+ const auto=[...importSource.detected].filter(k=>!importSource.edited.has(k)),ed=[...importSource.edited];
+ return{drawingNo:[importSource.drawingNo,importSource.revision&&`rev ${importSource.revision}`].filter(Boolean).join(" "),
+  text:`${importSource.tool}${auto.length?`; auto: ${auto.join(", ")}`:""}${ed.length?`; edited: ${ed.join(", ")}`:""}`};
 }
 function renderHistory(){
  const h=history();if(!h.length){$("historyTable").innerHTML='<div class="empty">No calculations saved yet.</div>';return}
- $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Start</th><th>CCT</th><th>Branch</th><th>Qty</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${x.start}</td><td>${x.cct}</td><td>${x.branch??"—"}${x.branchLevel?` (L${x.branchLevel})`:""}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td></tr>`).join("")}</tbody></table></div>`;
+ $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Drawing</th><th>Start</th><th>CCT</th><th>Branch</th><th>Qty</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${esc(x.drawingNo||"—")}<div class="muted">${esc(x.inputSource||"Manual")}</div></td><td>${x.start}</td><td>${x.cct}</td><td>${x.branch??"—"}${x.branchLevel?` (L${x.branchLevel})`:""}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td></tr>`).join("")}</tbody></table></div>`;
 }
 function renderMaster(){
  $("cctMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min</th><th>Max</th><th>Base Weeks</th><th>Base Days</th><th>Drawing Days</th></tr></thead><tbody>${master.cct.map((r,i)=>`<tr>
@@ -294,9 +346,10 @@ function bindMaster(){
 }
 function exportMaster(){download("manufacturing_lt_master.json",JSON.stringify(master,null,2),"application/json")}
 function importMaster(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.cct||!x.customers||!x.difficulty||!x.specials)throw Error();master=normalize(x);saveMaster();renderAll();alert("Master data imported.")}catch(_){alert("Invalid master data file.")}};r.readAsText(f)}
-function exportCSV(){const h=history();if(!h.length)return alert("No history to export.");const rows=[["Calculated","Start","CCT","Branch Count","Branch Level","Qty","Customer","Difficulty","Special","Qty Factor","Pre-Qty LT Days","LT Days","ETD"],...h.map(x=>[x.date,x.start,x.cct,x.branch??"",x.branchLevel??"",x.qty??1,x.customer,x.difficulty,x.special,x.qtyFactor??1,x.preQtyLT??x.lt,x.lt,x.etd])];download("manufacturing_lt_history.csv",rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n"),"text/csv")}
+function exportCSV(){const h=history();if(!h.length)return alert("No history to export.");const rows=[["Calculated","Drawing","Input Source","Start","CCT","Branch Count","Branch Level","Qty","Customer","Difficulty","Special","Qty Factor","Pre-Qty LT Days","LT Days","ETD"],...h.map(x=>[x.date,x.drawingNo??"",x.inputSource??"Manual",x.start,x.cct,x.branch??"",x.branchLevel??"",x.qty??1,x.customer,x.difficulty,x.special,x.qtyFactor??1,x.preQtyLT??x.lt,x.lt,x.etd])];download("manufacturing_lt_history.csv",rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n"),"text/csv")}
 function download(name,data,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 function notice(id,msg,cls){$(id).innerHTML=`<div class="notice ${cls}">${msg}</div>`}
+function localISODate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));

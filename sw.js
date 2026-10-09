@@ -1,5 +1,5 @@
-const CACHE="mfg-lt-v2-5";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg"];
+const CACHE="mfg-lt-v2-6";
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=2.6"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
