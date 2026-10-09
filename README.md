@@ -63,3 +63,4 @@ const master = LTCore.normalizeMaster(LTCore.clone(LTCore.DEFAULT_MASTER));
 const { inputs, warnings } = LTCore.parseInput(payload, master);
 const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review" | "error", totalLT, etd, ... }
 ```
+- Kept one **Set Current Data as Default** implementation (status line + Restore Factory Default). A default saved with the earlier ★ version (`mfg_ltc_user_default_master`) is migrated automatically on first load.

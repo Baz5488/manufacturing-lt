@@ -180,11 +180,14 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
-let master=loadMaster();
 
 function loadMaster(){try{return normalize(JSON.parse(localStorage.getItem(KEY))||getDefault())}catch(e){return getDefault()}}
 function saveMaster(){localStorage.setItem(KEY,JSON.stringify(master))}
 function userDefault(){try{return JSON.parse(localStorage.getItem(DEFKEY))}catch(e){return null}}
+// One-time migration of a default saved by the earlier "★ Set Current Data as Default" upload (key mfg_ltc_user_default_master).
+function migrateLegacyDefault(){const LEGACY="mfg_ltc_user_default_master";try{const raw=localStorage.getItem(LEGACY);if(!raw)return;const m=JSON.parse(raw);if(!localStorage.getItem(DEFKEY)&&m&&m.cct&&m.customers&&m.difficulty&&m.specials)localStorage.setItem(DEFKEY,JSON.stringify({saved:new Date().toISOString(),master:normalize(m)}));localStorage.removeItem(LEGACY)}catch(e){}}
+migrateLegacyDefault();
+let master=loadMaster();
 function getDefault(){return normalize(userDefault()?.master||clone(DEFAULT))}
 function renderDefaultStatus(){const u=userDefault();$("defaultStatus").textContent=u?`Default: custom data saved ${formatDate(new Date(u.saved))}. Reset uses this data.`:"Default: factory data. Reset uses the built-in rules.";$("clearDefaultMaster").style.display=u?"":"none"}
 function history(){try{return JSON.parse(localStorage.getItem(HIST))||[]}catch(e){return[]}}
