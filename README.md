@@ -27,9 +27,3 @@ Static PWA for GitHub Pages.
 ## V2.3 update
 - Added **Back to Top** navigation for History and Master Data pages.
 - Bumped the service-worker cache to `mfg-lt-v2-3`.
-
-
-## V2.4 update
-- Added **Set Current Data as Default** in Master Data.
-- Saves a browser-local copy of the current Master Data for reuse.
-- Reset Master Data restores the saved default when present.
