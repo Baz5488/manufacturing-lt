@@ -136,7 +136,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 </div>
 <div class="card" style="margin-top:14px">
 <h2>Production Capacity (ASSY FINDER link)</h2>
-<p class="muted">Paste the ASSY FINDER web app link (ending in <code>/exec</code>). The calculator reads the average weekly CCT capacity per WP type and the CCT already booked per ETD, and suggests the first ETD with enough capacity. Only totals are read — no item or customer details. Saved in this browser only.</p>
+<p class="muted">Paste the ASSY FINDER web app link (ending in <code>/exec</code>). The calculator reads the typical (median) weekly CCT capacity per WP type and the CCT already booked per ETD, and suggests the first ETD with enough capacity. Only totals are read — no item or customer details. Saved in this browser only.</p>
 <div class="field"><label>ASSY FINDER link</label><input id="capacityUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
 <div class="actions"><button class="secondary" id="saveCapacityUrl">Save &amp; Test</button><button class="secondary" id="clearCapacityUrl">Remove Link</button></div>
 <div id="capacityStatus"></div>
@@ -182,10 +182,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">Manufacturing LT Calculator v2.7 • Offline PWA</div>
+<div class="footer">Manufacturing LT Calculator v2.8 • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=2.7"></script>
+<script src="lt-core.js?v=2.8"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -306,7 +306,7 @@ function saveCapacityUrl(){
  if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v))return notice("capacityStatus","Paste the ASSY FINDER web app link (https://script.google.com/…/exec).","bad");
  localStorage.setItem(CAPKEY,v);capacityCache=null;
  notice("capacityStatus","Testing link…","warn");
- fetchCapacity(true).then(d=>notice("capacityStatus",`✓ Connected. Capacity from ${d.activeWeeks} week(s) of FG data (${esc(d.fromWeek)} – ${esc(d.toWeek)}); ${d.etds.length} ETD(s) with booked load. Total ${fmtNum(d.capacity.TOTAL&&d.capacity.TOTAL.average)} CCT/week.`,"good"))
+ fetchCapacity(true).then(d=>notice("capacityStatus",`✓ Connected. Capacity from ${d.activeWeeks} week(s) of FG data (${esc(d.fromWeek)} – ${esc(d.toWeek)}); ${d.etds.length} ETD(s) with booked load. Total ${fmtNum(d.capacity.TOTAL&&(d.capacity.TOTAL.value??d.capacity.TOTAL.average))} CCT/week (${esc(d.capacity.TOTAL&&d.capacity.TOTAL.value!==undefined?d.capacity.TOTAL.stat||"median":"average")}).`,"good"))
   .catch(e=>notice("capacityStatus","✕ "+esc(e.message),"bad"));
 }
 function fmtNum(n){return Math.round(Number(n)||0).toLocaleString("en-US")}
@@ -328,7 +328,7 @@ function checkCapacity(r){
   }
   const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${formatDate(new Date(c.etd+"T00:00:00"))}</td><td class="right">${fmtNum(c.booked)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
   box.innerHTML=`<div class="cap"><h3>Production capacity · ${esc(typeLabel)}</h3>${head}
-   <p class="muted">This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (average of ${feed.activeWeeks} week(s) of FG data).</p>
+   <p class="muted">This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
    ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:""}</div>`;
   // Save the result on the history entry of this calculation.
   const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=p.suggested?p.suggested.etd:"";h[0].capNote=note;saveHistory(h);renderHistory()}

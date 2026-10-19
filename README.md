@@ -76,3 +76,8 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - History and CSV export now include WP Type, Capacity ETD and Capacity Note.
 - `LTCore.planCapacity(feed, { load, wpType, earliest })` is available for other tools.
 - The service worker no longer caches requests to other sites (the capacity feed is always fetched live). Cache bumped to `mfg-lt-v2-7`.
+
+## V2.8 update — Median weekly capacity
+- The capacity check now plans with the **median** weekly capacity (a normal week) instead of the average, so batch or catch-up weeks in the FG data no longer inflate it. A WP type made in fewer than half of the weeks still uses the average (its median would be 0).
+- The feed sends `capacity[type] = { value, stat, median, average }`; the calculator uses `value` and shows which statistic it is. Older feeds that send only `average` still work.
+- Cache bumped to `mfg-lt-v2-8`.
