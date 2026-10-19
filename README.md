@@ -87,3 +87,12 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - This app is renamed **PROTO CONTROL · Planner** (title, header, PWA name). "ASSY FINDER link" is now **Tracker link**.
 - Nothing else changes: saved master data, history and the saved Tracker link stay in place, and the feed id `assy-finder/capacity@1` is kept so existing links keep working.
 - Cache bumped to `mfg-lt-v2-9`.
+
+## V3.0 update — PROTO CONTROL Analyzer (BOM)
+- New page `analyzer.html` (link on the Planner: **Open Analyzer (read a BOM)**). Runs fully in the browser; the BOM file never leaves the PC.
+- Reads Excel (.xlsx/.xls) or CSV (UTF-8 or Shift-JIS). Finds the header row and guesses the PART NO / NAME / TYPE / QTY / LT columns (JP/EN/ID headers); every guess can be changed.
+- **CCT** = number of wire rows (or the sum of their quantity, set in Rules). A row is a wire when its TYPE or NAME contains a wire keyword (電線, AVSS, CAVS, wire …) and none of the exclude words (harness, clamp, terminal …).
+- Special treatments (Marker, Ethernet, Braiding, Solder) are ticked when their keywords appear; they can be changed before sending.
+- **SEND TO PLANNER** fills the Planner (CCT, specials, customer, qty, branch, start date) and shows the BOM in its source box. **Download input JSON** gives the same data as a file (schema `manufacturing-lt/input@1`).
+- Rules (keywords) are editable, saved per browser, and can be exported/imported to share with others.
+- Excel reading uses SheetJS Community Edition 0.18.5 (`vendor/xlsx.full.min.js`, Apache-2.0, see `vendor/SHEETJS-LICENSE`).

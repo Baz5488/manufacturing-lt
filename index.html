@@ -42,6 +42,7 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 .back-to-top:hover{background:#f3f7fc}
 .source{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe;font-weight:400;display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
 button.small{padding:6px 10px;font-size:12px;flex:0 0 auto}
+a.btn-link{display:inline-flex;align-items:center;text-decoration:none;border-radius:10px;padding:11px 15px;font-weight:700;background:#e2e8f0;color:#0f172a}
 .cap{margin-top:12px;border:1px solid var(--line);border-radius:11px;padding:12px}.cap h3{margin:0 0 8px;font-size:14px}.cap .etd2{font-size:20px;font-weight:800}.cap table{margin-top:8px}.cap td,.cap th{padding:6px 8px}.cap .pick{background:var(--greenbg)}.cap .no{color:var(--red);font-weight:700}.cap .yes{color:var(--green);font-weight:700}
 .auto-badge{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;vertical-align:middle}
 .auto-badge.edited{background:var(--amberbg);color:var(--amber)}
@@ -65,7 +66,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="grid">
 <div class="card">
 <h2>Calculation Inputs</h2>
-<div class="actions"><button class="secondary" id="importInputBtn">Load from BOM / Drawing JSON</button><input id="importInput" type="file" accept=".json" style="display:none"></div>
+<div class="actions"><a class="secondary btn-link" href="analyzer.html">Open Analyzer (read a BOM)</a><button class="secondary" id="importInputBtn">Load from BOM / Drawing JSON</button><input id="importInput" type="file" accept=".json" style="display:none"></div>
 <div id="sourceBox" class="notice source" style="display:none;margin:0 0 14px"><div id="sourceText"></div><button class="secondary small" id="clearSource">Dismiss</button></div>
 <div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branch" type="number" min="0" step="1" placeholder="e.g. 25"></div></div>
 <div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P (e.g. 02P09)</option><option value="E">E (e.g. 03E10)</option><option value="-">- (e.g. 01-10)</option><option value="/">/ (e.g. 02/08)</option></select></div></div>
@@ -182,10 +183,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v2.9 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.0 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=2.9"></script>
+<script src="lt-core.js?v=3.0"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -342,6 +343,13 @@ const SAMPLE_INPUT={schema:LTCore.INPUT_SCHEMA,customer:"KOBELCO",wireCount:180,
 let importSource=null;
 function prefillFromURL(){
  const q=new URLSearchParams(location.search);if(![...q.keys()].length)return;
+ // From the Analyzer: the full payload (incl. BOM lines) is handed over in localStorage.
+ if(q.get("from")==="analyzer"){
+  let h=null;try{h=JSON.parse(localStorage.getItem("proto_control_analyzer_handoff"))}catch(e){}
+  if(h&&h.payload){applyInput(h.payload);localStorage.removeItem("proto_control_analyzer_handoff")}
+  else notice("inputNotice","Nothing was received from the Analyzer. Send it again, or use Download input JSON in the Analyzer.","warn");
+  return;
+ }
  const g=(...k)=>{for(const x of k)if(q.has(x))return q.get(x)};
  const payload={customer:g("customer"),wireCount:g("wireCount","cct"),branchCount:g("branchCount","branch"),qty:g("qty"),startDate:g("startDate","start"),specials:g("specials"),
   source:{tool:g("tool")||"URL",drawingNo:g("drawingNo","drawing"),revision:g("revision","rev")}};
