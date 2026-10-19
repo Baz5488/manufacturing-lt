@@ -174,5 +174,67 @@
     return result;
   }
 
-  return { INPUT_SCHEMA, DEFAULT_MASTER, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime };
+  /*
+   * Capacity check against the ASSY FINDER capacity feed (schema assy-finder/capacity@1):
+   * {
+   *   capacity: { P: { average }, E: {...}, "-": {...}, "/": {...}, TOTAL: {...} },  // CCT x QTY per week
+   *   etds: [ { etd: "2026-10-23", overdue: false, byType: { P: 1900, E: 700 } } ],  // CCT x QTY already booked
+   *   today: "2026-10-19"   // unfinished items with a past ETD (overdue) are booked in this week
+   * }
+   * order: { load: CCT x QTY, wpType: "P" | "E" | "-" | "/" | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
+   * Finds the first weekly ETD on or after `earliest` whose free capacity (average - booked) fits the load.
+   * ETDs in the same week (Mon-Sun) share one week's capacity. Weeks beyond the feed have nothing booked.
+   */
+  const WEEK_MS = 7 * 86400000;
+  function isoToUTC(iso) { const [y, m, d] = iso.split("-").map(Number); return Date.UTC(y, m - 1, d); }
+  function utcToIso(t) { return new Date(t).toISOString().slice(0, 10); }
+  function weekStartUTC(t) { const day = new Date(t).getUTCDay(); return t - ((day + 6) % 7) * 86400000; }
+
+  function planCapacity(feed, order, options) {
+    const opt = Object.assign({ weeks: 26, show: 6 }, options || {});
+    const type = order.wpType || "";
+    const capKey = type || "TOTAL";
+    const capacity = Number(feed && feed.capacity && feed.capacity[capKey] && feed.capacity[capKey].average) || 0;
+    const need = Math.max(0, Number(order.load) || 0);
+    if (!order.earliest || !/^\d{4}-\d{2}-\d{2}$/.test(order.earliest)) return { status: "error", error: "No earliest ETD." };
+    if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, need, candidates: [], suggested: null };
+
+    // Booked load per week, and the usual ETD weekday (most common among upcoming ETDs; default Friday).
+    const bookedByWeek = {};
+    const weekdayCount = {};
+    (feed.etds || []).forEach(e => {
+      if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(e.etd || "")) return;
+      const t = isoToUTC(e.etd);
+      const by = e.byType || {};
+      const booked = type ? Number(by[type]) || 0 : Object.keys(by).reduce((s, k) => s + (Number(by[k]) || 0), 0);
+      // Overdue (past ETD, unfinished) load still has to be produced: book it in the current week.
+      const todayOk = /^\d{4}-\d{2}-\d{2}$/.test(feed.today || "");
+      const wk = e.overdue && todayOk ? weekStartUTC(isoToUTC(feed.today)) : weekStartUTC(t);
+      bookedByWeek[wk] = (bookedByWeek[wk] || 0) + booked;
+      if (!e.overdue) { const wd = new Date(t).getUTCDay(); weekdayCount[wd] = (weekdayCount[wd] || 0) + 1; }
+    });
+    const etdWeekday = Number(Object.keys(weekdayCount).sort((a, b) => weekdayCount[b] - weekdayCount[a])[0] ?? 5);
+
+    // First ETD weekday on or after `earliest`.
+    let t = isoToUTC(order.earliest);
+    while (new Date(t).getUTCDay() !== etdWeekday) t += 86400000;
+
+    const candidates = [];
+    let suggested = null;
+    for (let i = 0; i < opt.weeks; i++, t += WEEK_MS) {
+      const booked = bookedByWeek[weekStartUTC(t)] || 0;
+      const free = capacity - booked;
+      const row = { etd: utcToIso(t), booked, free, fits: free >= need };
+      if (candidates.length < opt.show) candidates.push(row);
+      if (!suggested && row.fits) { suggested = row; if (candidates.length >= opt.show) break; }
+    }
+    return {
+      status: need > capacity ? "too-big" : suggested ? "ok" : "full",
+      type: capKey, capacity, need, etdWeekday,
+      weeksNeeded: Math.ceil(need / capacity),
+      suggested, candidates
+    };
+  }
+
+  return { INPUT_SCHEMA, DEFAULT_MASTER, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity };
 });

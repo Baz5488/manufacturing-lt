@@ -64,3 +64,15 @@ const { inputs, warnings } = LTCore.parseInput(payload, master);
 const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review" | "error", totalLT, etd, ... }
 ```
 - Kept one **Set Current Data as Default** implementation (status line + Restore Factory Default). A default saved with the earlier ★ version (`mfg_ltc_user_default_master`) is migrated automatically on first load.
+
+## V2.7 update — Production capacity check (ASSY FINDER link)
+- New **WP Type** input (P / E / - / /, or Any) on the Calculator tab.
+- **Master Data → Production Capacity**: paste the ASSY FINDER web app link (`…/exec`) and press **Save & Test**. Saved in this browser only.
+- After a calculation, the result card shows a **Capacity-based ETD**: the first weekly ETD on or after the formula ETD whose free capacity fits the order (CCT × Qty).
+  - Capacity per ETD = ASSY FINDER's average weekly CCT × QTY reaching FG for that WP type (last 12 weeks; "Any" = total capacity).
+  - Booked = CCT × QTY of unfinished items already on that ETD (ETDs in the same week share one week's capacity). Unfinished items with a past ETD are booked in the current week.
+  - An order bigger than one week's capacity is flagged with the number of weeks it needs.
+- The feed (`?api=capacity`, schema `assy-finder/capacity@1`) has only totals per WP type and ETD — no item or customer details. JSON is tried first, then JSONP.
+- History and CSV export now include WP Type, Capacity ETD and Capacity Note.
+- `LTCore.planCapacity(feed, { load, wpType, earliest })` is available for other tools.
+- The service worker no longer caches requests to other sites (the capacity feed is always fetched live). Cache bumped to `mfg-lt-v2-7`.
