@@ -31,7 +31,7 @@
       {level:1,name:"Easy",buffer:0},{level:2,name:"Medium",buffer:2},{level:3,name:"Hard",buffer:5},
       {level:4,name:"Very Hard",buffer:7},{level:5,name:"Extremely Hard",buffer:null}
     ],
-    specials: [["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2]],
+    specials: [["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2],["Rocket",-14]],
     branchLevels: [
       {label:"0–10",min:0,max:10,level:1},
       {label:"11–30",min:11,max:30,level:2},
@@ -50,9 +50,18 @@
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
   // Fill sections that older saved/exported master data may be missing.
+  // Special treatments added to the defaults later: put into saved master data once (kept out if renamed or changed later).
+  const ADDED_SPECIALS = [["Rocket", -14]];
+
   function normalizeMaster(m) {
     if (!m.quantityFactors) m.quantityFactors = clone(DEFAULT_MASTER.quantityFactors);
     if (!m.branchLevels) m.branchLevels = clone(DEFAULT_MASTER.branchLevels);
+    if (!Array.isArray(m.addedSpecials)) m.addedSpecials = [];
+    for (const [name, days] of ADDED_SPECIALS) {
+      if (m.addedSpecials.includes(name)) continue;
+      if (!m.specials.some(s => String(s[0]).toLowerCase() === name.toLowerCase())) m.specials.push([name, days]);
+      m.addedSpecials.push(name);
+    }
     return m;
   }
 
