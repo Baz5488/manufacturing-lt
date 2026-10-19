@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="Manufacturing Lead Time Calculator">
+<meta name="description" content="PROTO CONTROL Planner — manufacturing lead time and capacity-based ETD">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<title>Manufacturing LT Calculator</title>
+<title>PROTO CONTROL · Planner</title>
 <style>
 :root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#2563eb;--blue2:#1d4ed8;--green:#166534;--greenbg:#dcfce7;--amber:#92400e;--amberbg:#fef3c7;--red:#991b1b;--redbg:#fee2e2}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Arial,Helvetica,sans-serif}.wrap{max-width:1100px;margin:auto;padding:16px}
@@ -52,7 +52,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <body>
 <div id="pageTop"></div>
 <div class="wrap">
-<header><h1>Manufacturing Lead Time Calculator</h1><p>Calculate manufacturing LT and estimated ETD from CCT, customer difficulty, special treatment and manufacturing quantity.</p></header>
+<header><h1>PROTO CONTROL <span style="font-weight:400;opacity:.8">Planner</span></h1><p>Manufacturing lead time and capacity-based ETD from CCT, customer difficulty, special treatment and manufacturing quantity.</p></header>
 
 <nav>
 <button class="tab active" data-tab="calculator">Calculator</button>
@@ -135,9 +135,9 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="master-table" id="qtyFactorMaster"></div>
 </div>
 <div class="card" style="margin-top:14px">
-<h2>Production Capacity (ASSY FINDER link)</h2>
-<p class="muted">Paste the ASSY FINDER web app link (ending in <code>/exec</code>). The calculator reads the typical (median) weekly CCT capacity per WP type and the CCT already booked per ETD, and suggests the first ETD with enough capacity. Only totals are read — no item or customer details. Saved in this browser only.</p>
-<div class="field"><label>ASSY FINDER link</label><input id="capacityUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+<h2>Production Capacity (Tracker link)</h2>
+<p class="muted">Paste the PROTO CONTROL Tracker web app link (formerly ASSY FINDER; ending in <code>/exec</code>). The calculator reads the typical (median) weekly CCT capacity per WP type and the CCT already booked per ETD, and suggests the first ETD with enough capacity. Only totals are read — no item or customer details. Saved in this browser only.</p>
+<div class="field"><label>Tracker link</label><input id="capacityUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
 <div class="actions"><button class="secondary" id="saveCapacityUrl">Save &amp; Test</button><button class="secondary" id="clearCapacityUrl">Remove Link</button></div>
 <div id="capacityStatus"></div>
 </div>
@@ -182,10 +182,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">Manufacturing LT Calculator v2.8 • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v2.9 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=2.8"></script>
+<script src="lt-core.js?v=2.9"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -279,7 +279,7 @@ function calculate(){
  const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:r.specials.join(", ")||"None",preQtyLT:r.preQtyLT,lt:total,etd:r.etd,wpType:$("wpType").value,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
 }
 
-// ---- Production capacity (ASSY FINDER feed, schema assy-finder/capacity@1) ----
+// ---- Production capacity (PROTO CONTROL Tracker feed, schema assy-finder/capacity@1 — id kept for compatibility) ----
 const CAPKEY="manufacturing_lt_v2_capacity_url", CAPACITY_CACHE_MS=10*60*1000;
 let capacityCache=null, capacityRun=0;
 function capacityUrl(){try{return localStorage.getItem(CAPKEY)||""}catch(e){return ""}}
@@ -287,7 +287,7 @@ function feedUrl(base,extra){return base+(base.includes("?")?"&":"?")+"api=capac
 // JSON first; JSONP as a fallback when the browser may not read the JSON directly.
 function fetchCapacity(force){
  const base=capacityUrl();
- if(!base)return Promise.reject(new Error("No ASSY FINDER link saved (Master Data → Production Capacity)."));
+ if(!base)return Promise.reject(new Error("No Tracker link saved (Master Data → Production Capacity)."));
  if(!force&&capacityCache&&capacityCache.url===base&&Date.now()-capacityCache.at<CAPACITY_CACHE_MS)return Promise.resolve(capacityCache.data);
  const keep=data=>{if(!data||data.error||!data.capacity)throw new Error(data&&data.error?data.error:"The link did not return capacity data.");capacityCache={url:base,at:Date.now(),data};return data};
  return fetch(feedUrl(base),{redirect:"follow"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(keep)
@@ -297,13 +297,13 @@ function jsonp(url){return new Promise((resolve,reject)=>{
  const cb="ltCapacity_"+Date.now(),s=document.createElement("script");let done=false;
  const end=()=>{done=true;delete window[cb];s.remove()};
  window[cb]=d=>{end();resolve(d)};
- s.onerror=()=>{if(!done){end();reject(new Error("Could not load the ASSY FINDER link. Check the link and that the web app is deployed with access for the people using this calculator."))}};
- setTimeout(()=>{if(!done){end();reject(new Error("The ASSY FINDER link did not answer in time."))}},15000);
+ s.onerror=()=>{if(!done){end();reject(new Error("Could not load the Tracker link. Check the link and that the web app is deployed with access for the people using this calculator."))}};
+ setTimeout(()=>{if(!done){end();reject(new Error("The Tracker link did not answer in time."))}},15000);
  s.src=url+cb;document.head.appendChild(s);
 })}
 function saveCapacityUrl(){
  const v=$("capacityUrl").value.trim();
- if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v))return notice("capacityStatus","Paste the ASSY FINDER web app link (https://script.google.com/…/exec).","bad");
+ if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v))return notice("capacityStatus","Paste the Tracker web app link (https://script.google.com/…/exec).","bad");
  localStorage.setItem(CAPKEY,v);capacityCache=null;
  notice("capacityStatus","Testing link…","warn");
  fetchCapacity(true).then(d=>notice("capacityStatus",`✓ Connected. Capacity from ${d.activeWeeks} week(s) of FG data (${esc(d.fromWeek)} – ${esc(d.toWeek)}); ${d.etds.length} ETD(s) with booked load. Total ${fmtNum(d.capacity.TOTAL&&(d.capacity.TOTAL.value??d.capacity.TOTAL.average))} CCT/week (${esc(d.capacity.TOTAL&&d.capacity.TOTAL.value!==undefined?d.capacity.TOTAL.stat||"median":"average")}).`,"good"))
@@ -312,7 +312,7 @@ function saveCapacityUrl(){
 function fmtNum(n){return Math.round(Number(n)||0).toLocaleString("en-US")}
 function checkCapacity(r){
  const run=capacityRun, box=$("capacityBox"), wp=$("wpType").value, need=r.cct*r.qty;
- if(!capacityUrl()){box.innerHTML='<p class="muted" style="margin-top:10px">Capacity check off — add the ASSY FINDER link in Master Data → Production Capacity.</p>';return}
+ if(!capacityUrl()){box.innerHTML='<p class="muted" style="margin-top:10px">Capacity check off — add the Tracker link in Master Data → Production Capacity.</p>';return}
  box.innerHTML='<div class="cap muted">Checking production capacity…</div>';
  fetchCapacity(false).then(feed=>{
   if(run!==capacityRun)return;

@@ -175,7 +175,8 @@
   }
 
   /*
-   * Capacity check against the ASSY FINDER capacity feed (schema assy-finder/capacity@1):
+   * Capacity check against the PROTO CONTROL Tracker capacity feed (schema assy-finder/capacity@1;
+   * the id is kept from the Tracker's former name, ASSY FINDER, so existing links keep working):
    * {
    *   capacity: { P: { value, stat: "median" | "average" }, E: {...}, "-": {...}, "/": {...}, TOTAL: {...} },  // CCT x QTY per week
    *              (feeds from before v2.8 send only { average }; it is used when `value` is missing)

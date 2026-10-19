@@ -81,3 +81,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - The capacity check now plans with the **median** weekly capacity (a normal week) instead of the average, so batch or catch-up weeks in the FG data no longer inflate it. A WP type made in fewer than half of the weeks still uses the average (its median would be 0).
 - The feed sends `capacity[type] = { value, stat, median, average }`; the calculator uses `value` and shows which statistic it is. Older feeds that send only `average` still work.
 - Cache bumped to `mfg-lt-v2-8`.
+
+## V2.9 update — PROTO CONTROL naming
+- The tools now form one suite, **PROTO CONTROL**: Analyzer (BOM / drawing analyzer) → **Planner** (this calculator) → **Tracker** (formerly ASSY FINDER) → Insight (performance & capacity pages in the Tracker).
+- This app is renamed **PROTO CONTROL · Planner** (title, header, PWA name). "ASSY FINDER link" is now **Tracker link**.
+- Nothing else changes: saved master data, history and the saved Tracker link stay in place, and the feed id `assy-finder/capacity@1` is kept so existing links keep working.
+- Cache bumped to `mfg-lt-v2-9`.
