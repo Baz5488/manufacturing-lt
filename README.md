@@ -103,3 +103,17 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Master data already saved in a browser gets Rocket added once, on the first load of v3.1. Your own changes are kept, and Rocket is not added back if you later rename or change it.
 - Special-treatment days can be negative; they are shown as "−14 days".
 - Like the other buffers, Rocket's −14 days is added before the quantity factor is applied.
+
+## V3.2 update — Rocket ETD: must achieve, earlier when capacity allows
+- **Rocket** is a must-achieve short-lead-time service. The formula ETD with Rocket's −14 days is the **Rocket ETD**: the latest allowed date. It is labelled *🚀 Rocket ETD — must achieve*.
+- With the Tracker capacity link, the Planner searches every week from the **earliest possible date** to the Rocket ETD, and suggests the earliest ETD with enough free capacity.
+  - The earliest possible date is start + drawing breakdown days for the CCT range + one production week.
+  - Normal orders still search *later* than the formula ETD.
+- If no week up to the Rocket ETD has room, the Rocket ETD is **kept** with a red warning showing how much capacity is short. If the order alone is bigger than one week's capacity, the warning says to split it instead.
+- History records the result in the capacity columns, e.g. "Rocket: 27 days early" or "Rocket: short 200 CCT".
+- **Rocket's days come off after the quantity factor, scaled by (2 − factor), never below 0**: a bigger lot is harder to rush.
+  - The savings by quantity factor are: 1 pc −14 days, ×1.1 −13, ×1.2 −11, ×1.3 −10, ×1.5 −7.
+  - With a factor of 2.0 or more, Rocket saves nothing.
+  - This applies to any special treatment with negative days. The *Short-LT reduction* row in the result shows it, e.g. "−7 days (14 × 0.50)".
+  - It replaces the v3.1 behaviour, where the −14 was multiplied by the factor.
+- Core: `LTCore.calcLeadTime()` returns `rocket: { deadline, floor }`; `LTCore.planRocket(feed, { load, wpType, floor, deadline })`.
