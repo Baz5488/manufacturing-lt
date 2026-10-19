@@ -177,7 +177,8 @@
   /*
    * Capacity check against the ASSY FINDER capacity feed (schema assy-finder/capacity@1):
    * {
-   *   capacity: { P: { average }, E: {...}, "-": {...}, "/": {...}, TOTAL: {...} },  // CCT x QTY per week
+   *   capacity: { P: { value, stat: "median" | "average" }, E: {...}, "-": {...}, "/": {...}, TOTAL: {...} },  // CCT x QTY per week
+   *              (feeds from before v2.8 send only { average }; it is used when `value` is missing)
    *   etds: [ { etd: "2026-10-23", overdue: false, byType: { P: 1900, E: 700 } } ],  // CCT x QTY already booked
    *   today: "2026-10-19"   // unfinished items with a past ETD (overdue) are booked in this week
    * }
@@ -194,10 +195,12 @@
     const opt = Object.assign({ weeks: 26, show: 6 }, options || {});
     const type = order.wpType || "";
     const capKey = type || "TOTAL";
-    const capacity = Number(feed && feed.capacity && feed.capacity[capKey] && feed.capacity[capKey].average) || 0;
+    const cap = (feed && feed.capacity && feed.capacity[capKey]) || {};
+    const capacity = Number(cap.value ?? cap.average) || 0;
+    const stat = cap.value !== undefined ? (cap.stat || "median") : "average";
     const need = Math.max(0, Number(order.load) || 0);
     if (!order.earliest || !/^\d{4}-\d{2}-\d{2}$/.test(order.earliest)) return { status: "error", error: "No earliest ETD." };
-    if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, need, candidates: [], suggested: null };
+    if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, stat, need, candidates: [], suggested: null };
 
     // Booked load per week, and the usual ETD weekday (most common among upcoming ETDs; default Friday).
     const bookedByWeek = {};
@@ -230,7 +233,7 @@
     }
     return {
       status: need > capacity ? "too-big" : suggested ? "ok" : "full",
-      type: capKey, capacity, need, etdWeekday,
+      type: capKey, capacity, stat, need, etdWeekday,
       weeksNeeded: Math.ceil(need / capacity),
       suggested, candidates
     };
