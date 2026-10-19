@@ -180,6 +180,11 @@
     result.preQtyLT = rule.baseDays + rule.drawingDays + d.buffer + specialDays;
     result.totalLT = Math.ceil(result.preQtyLT * Number(qf.factor));
     result.etd = addDays(startDate, result.totalLT);
+    // Rocket = must-achieve short-LT service: the ETD above (with Rocket's days) is the latest allowed date;
+    // an earlier ETD is better when capacity allows, but not before drawing breakdown + one production week.
+    if (result.specials.some(n => n.toLowerCase() === ROCKET)) {
+      result.rocket = { deadline: result.etd, floor: addDays(startDate, rule.drawingDays + ROCKET_MIN_PRODUCTION_DAYS) };
+    }
     return result;
   }
 
@@ -197,21 +202,14 @@
    * ETDs in the same week (Mon-Sun) share one week's capacity. Weeks beyond the feed have nothing booked.
    */
   const WEEK_MS = 7 * 86400000;
+  const ROCKET = "rocket";
+  const ROCKET_MIN_PRODUCTION_DAYS = 7;
   function isoToUTC(iso) { const [y, m, d] = iso.split("-").map(Number); return Date.UTC(y, m - 1, d); }
   function utcToIso(t) { return new Date(t).toISOString().slice(0, 10); }
   function weekStartUTC(t) { const day = new Date(t).getUTCDay(); return t - ((day + 6) % 7) * 86400000; }
 
-  function planCapacity(feed, order, options) {
-    const opt = Object.assign({ weeks: 26, show: 6 }, options || {});
-    const type = order.wpType || "";
-    const capKey = type || "TOTAL";
-    const cap = (feed && feed.capacity && feed.capacity[capKey]) || {};
-    const capacity = Number(cap.value ?? cap.average) || 0;
-    const stat = cap.value !== undefined ? (cap.stat || "median") : "average";
-    const need = Math.max(0, Number(order.load) || 0);
-    if (!order.earliest || !/^\d{4}-\d{2}-\d{2}$/.test(order.earliest)) return { status: "error", error: "No earliest ETD." };
-    if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, stat, need, candidates: [], suggested: null };
-
+  /** Booked CCT x QTY per week (Monday, UTC ms) for a WP type ("" = all), and the usual ETD weekday (default Friday). */
+  function bookedLoad(feed, type) {
     // Booked load per week, and the usual ETD weekday (most common among upcoming ETDs; default Friday).
     const bookedByWeek = {};
     const weekdayCount = {};
@@ -227,6 +225,60 @@
       if (!e.overdue) { const wd = new Date(t).getUTCDay(); weekdayCount[wd] = (weekdayCount[wd] || 0) + 1; }
     });
     const etdWeekday = Number(Object.keys(weekdayCount).sort((a, b) => weekdayCount[b] - weekdayCount[a])[0] ?? 5);
+    return { bookedByWeek, etdWeekday };
+  }
+
+  function capacityOf(feed, type) {
+    const capKey = type || "TOTAL";
+    const cap = (feed && feed.capacity && feed.capacity[capKey]) || {};
+    return { capKey, capacity: Number(cap.value ?? cap.average) || 0, stat: cap.value !== undefined ? (cap.stat || "median") : "average" };
+  }
+
+  /*
+   * Rocket order: order = { load, wpType, floor: "YYYY-MM-DD", deadline: "YYYY-MM-DD" }.
+   * Looks at every week from `floor` to `deadline` (the standard Rocket ETD, which must be met) and suggests the
+   * earliest ETD whose free capacity fits the load. The last slot is the deadline itself when the usual ETD weekday
+   * falls after it. When nothing fits, the deadline is kept (status "short") with the CCT missing in its week.
+   */
+  function planRocket(feed, order) {
+    const type = order.wpType || "";
+    const { capKey, capacity, stat } = capacityOf(feed, type);
+    const need = Math.max(0, Number(order.load) || 0);
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    if (!iso.test(order.floor || "") || !iso.test(order.deadline || "")) return { status: "error", error: "No Rocket dates." };
+    const base = { type: capKey, capacity, stat, need, floor: order.floor, deadline: order.deadline };
+    if (capacity <= 0) return Object.assign(base, { status: "no-capacity", candidates: [], suggested: null });
+
+    const { bookedByWeek, etdWeekday } = bookedLoad(feed, type);
+    const deadline = isoToUTC(order.deadline);
+    let t = Math.min(isoToUTC(order.floor), deadline);
+    while (new Date(t).getUTCDay() !== etdWeekday) t += 86400000;
+    const candidates = [];
+    for (let wk = weekStartUTC(Math.min(t, deadline)); wk <= weekStartUTC(deadline); wk += WEEK_MS) {
+      const day = Math.min(Math.max(wk + ((etdWeekday + 6) % 7) * 86400000, t), deadline);
+      const booked = bookedByWeek[wk] || 0;
+      const free = capacity - booked;
+      candidates.push({ etd: utcToIso(day), booked, free, fits: free >= need });
+    }
+    const suggested = candidates.find(c => c.fits) || null;
+    const last = candidates[candidates.length - 1];
+    return Object.assign(base, {
+      status: suggested ? "ok" : "short",
+      daysEarlier: suggested ? Math.round((deadline - isoToUTC(suggested.etd)) / 86400000) : 0,
+      shortBy: suggested ? 0 : Math.max(0, need - last.free),
+      suggested, candidates
+    });
+  }
+
+  function planCapacity(feed, order, options) {
+    const opt = Object.assign({ weeks: 26, show: 6 }, options || {});
+    const type = order.wpType || "";
+    const { capKey, capacity, stat } = capacityOf(feed, type);
+    const need = Math.max(0, Number(order.load) || 0);
+    if (!order.earliest || !/^\d{4}-\d{2}-\d{2}$/.test(order.earliest)) return { status: "error", error: "No earliest ETD." };
+    if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, stat, need, candidates: [], suggested: null };
+
+    const { bookedByWeek, etdWeekday } = bookedLoad(feed, type);
 
     // First ETD weekday on or after `earliest`.
     let t = isoToUTC(order.earliest);
@@ -385,5 +437,5 @@
     return { title_block: tb, bom, notes };
   }
 
-  return { INPUT_SCHEMA, DEFAULT_MASTER, ANALYZER_HINTS, fromAnalyzerResult, analyzerWorkbookToResult, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity };
+  return { INPUT_SCHEMA, DEFAULT_MASTER, ANALYZER_HINTS, fromAnalyzerResult, analyzerWorkbookToResult, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity, planRocket };
 });
