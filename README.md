@@ -88,11 +88,12 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Nothing else changes: saved master data, history and the saved Tracker link stay in place, and the feed id `assy-finder/capacity@1` is kept so existing links keep working.
 - Cache bumped to `mfg-lt-v2-9`.
 
-## V3.0 update — PROTO CONTROL Analyzer (BOM)
-- New page `analyzer.html` (link on the Planner: **Open Analyzer (read a BOM)**). Runs fully in the browser; the BOM file never leaves the PC.
-- Reads Excel (.xlsx/.xls) or CSV (UTF-8 or Shift-JIS). Finds the header row and guesses the PART NO / NAME / TYPE / QTY / LT columns (JP/EN/ID headers); every guess can be changed.
-- **CCT** = number of wire rows (or the sum of their quantity, set in Rules). A row is a wire when its TYPE or NAME contains a wire keyword (電線, AVSS, CAVS, wire …) and none of the exclude words (harness, clamp, terminal …).
-- Special treatments (Marker, Ethernet, Braiding, Solder) are ticked when their keywords appear; they can be changed before sending.
-- **SEND TO PLANNER** fills the Planner (CCT, specials, customer, qty, branch, start date) and shows the BOM in its source box. **Download input JSON** gives the same data as a file (schema `manufacturing-lt/input@1`).
-- Rules (keywords) are editable, saved per browser, and can be exported/imported to share with others.
-- Excel reading uses SheetJS Community Edition 0.18.5 (`vendor/xlsx.full.min.js`, Apache-2.0, see `vendor/SHEETJS-LICENSE`).
+## V3.0 update — Load results from the PROTO CONTROL Analyzer
+- The Analyzer is the desktop **Harness BOM Analyzer** (reads the drawing, company parts DB, factory WOS). Its **Quick check** already opens this calculator with a pre-filled link.
+- New: **Load BOM Analyzer result / JSON** also takes a finished analysis as a file: `work/<drawing>/result.json` or the exported `<drawing>_BOM.xlsx` (for when the result is on another PC or came by mail).
+  - CCT = **process CCT** (factory QTY CCT), else cut wire pieces, else the count printed on the drawing (with a warning: not the factory count).
+  - Branch count = **branch segments** (as `calculator_branch_count` in the Analyzer's `quick_customers.json`), else branch points.
+  - Customer from the title-block company, else the drawing-number prefix; special treatments from keywords in the drawing notes and BOM lines — the same hints as `quick_customers.json` (`LTCore.ANALYZER_HINTS`).
+- The source box shows **how** each value was found (CCT / branch count source, customer, the note that ticked each special treatment). Links can carry this as `cctSource` / `branchSource`.
+- Converters are in `lt-core.js`: `LTCore.fromAnalyzerResult(result)` and `LTCore.analyzerWorkbookToResult(sheets)`.
+- Excel files are read with SheetJS Community Edition 0.18.5 (`vendor/xlsx.full.min.js`, Apache-2.0, see `vendor/SHEETJS-LICENSE`), loaded only when an .xlsx is chosen.

@@ -240,5 +240,141 @@
     };
   }
 
-  return { INPUT_SCHEMA, DEFAULT_MASTER, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity };
+  // ---------- PROTO CONTROL Analyzer (desktop Harness BOM Analyzer) results ----------
+  // Same customer / special-treatment hints as the Analyzer's quick_customers.json.
+  const ANALYZER_HINTS = {
+    customers: {
+      "HITACHI": { keywords: ["HITACHI", "日立建機", "Hitachi Construction Machinery"], prefixes: ["YA", "HF"] },
+      "KOBELCO": { keywords: ["KOBELCO", "コベルコ", "神戸製鋼"], prefixes: [] },
+      "SUMITOMO": { keywords: ["SUMITOMO", "住友建機"], prefixes: [] },
+      "YAMATO": { keywords: ["YAMATO", "ヤマト"], prefixes: [] },
+      "CATERPILLAR": { keywords: ["CATERPILLAR", "キャタピラー"], prefixes: [] },
+      "TAKEUCHI": { keywords: ["TAKEUCHI", "竹内製作所"], prefixes: ["03742"] },
+      "KOMATSU": { keywords: ["KOMATSU", "コマツ", "小松製作所"], prefixes: [] },
+      "MITSUBISHI THERMAL": { keywords: ["MITSUBISHI THERMAL", "三菱重工サーマル", "MITSUBISHI HEAVY INDUSTRIES THERMAL"], prefixes: ["TNA", "TNC"] },
+      "SAKAI": { keywords: ["SAKAI", "酒井重工"], prefixes: ["B439"] },
+      "TOHATSU": { keywords: ["TOHATSU", "トーハツ"], prefixes: [] },
+      "GAC": { keywords: ["GAC"], prefixes: [] },
+      "KYOEISHA": { keywords: ["KYOEISHA", "共栄社"], prefixes: [] },
+      "KATO": { keywords: ["KATO WORKS", "加藤製作所", "KATO"], prefixes: ["81E"] },
+      "YAMABIKO": { keywords: ["YAMABIKO", "やまびこ"], prefixes: [] },
+      "Mitsubishi Logi": { keywords: ["MITSUBISHI LOGISNEXT", "三菱ロジスネクスト"], prefixes: [] },
+      "GIKEN": { keywords: ["GIKEN", "技研製作所"], prefixes: [] },
+      "HSC": { keywords: ["HSC CRANES", "HSC", "日立住友重機械建機クレーン"], prefixes: ["YL"] },
+      "KUBOTA": { keywords: ["KUBOTA", "クボタ"], prefixes: [] }
+    },
+    specials: {
+      Marker: ["marking tube", "marker tube", "マークチューブ", "マーカーチューブ", "wire marker"],
+      Ethernet: ["ethernet", "イーサネット", "cat5", "cat6", "rj45"],
+      Braiding: ["braided tub", "braided sleev", "twisttube", "twist tube", "編組チューブ", "expandable braid"],
+      Solder: ["solder", "はんだ", "半田"]
+    },
+    branchBasis: "branch_segments" // = calculator_branch_count in quick_customers.json
+  };
+
+  const str = v => (v === null || v === undefined ? "" : String(v).trim());
+  const intOf = v => { const m = str(v).match(/^\d+$/); return m ? Number(m[0]) : null; };
+
+  /** Customer from the title-block company / title, else the drawing-number prefix (as the Analyzer's quick check). */
+  function analyzerCustomer(tb, hints) {
+    const text = (str(tb.company) + " " + str(tb.title)).toLowerCase();
+    let best = null;
+    for (const [name, c] of Object.entries(hints.customers)) {
+      for (const k of c.keywords || []) if (k && text.includes(k.toLowerCase()) && (!best || k.length > best[0])) best = [k.length, name, `title-block company "${str(tb.company)}"`];
+    }
+    if (best) return { name: best[1], how: best[2] };
+    const dno = str(tb.drawing_number).toUpperCase();
+    for (const [name, c] of Object.entries(hints.customers)) {
+      for (const p of c.prefixes || []) if (p && dno.startsWith(p.toUpperCase()) && (!best || p.length > best[0])) best = [p.length, name, `drawing number prefix ${p}…`];
+    }
+    return best ? { name: best[1], how: best[2] } : null;
+  }
+
+  /**
+   * Analyzer result (work/<drawing>/result.json, or analyzerWorkbookToResult()) -> input@1 payload.
+   * CCT = process CCT (factory QTY CCT), else cut wire pieces, else the count printed on the drawing (flagged).
+   */
+  function fromAnalyzerResult(result, hintsIn) {
+    const hints = hintsIn || ANALYZER_HINTS;
+    const r = result || {};
+    const tb = r.title_block || {};
+    const payload = { schema: INPUT_SCHEMA, source: { tool: "BOM Analyzer (result file)", drawingNo: str(tb.drawing_number), revision: str(tb.revision), detected: [] } };
+    const src = payload.source;
+    const notes = [];
+
+    let cct = intOf(tb.process_cct), cctSource = str(tb.process_cct_source);
+    if (cct === null && intOf(tb.wire_count) !== null) { cct = intOf(tb.wire_count); cctSource = str(tb.wire_count_source) || "wire count"; }
+    if (cct === null) {
+      const m = str(tb.printed_wire_count).match(/\d+/);
+      if (m) { cct = Number(m[0]); cctSource = `printed on the drawing ('${str(tb.printed_wire_count)}') - not the factory process CCT`; }
+    }
+    if (cct !== null) { payload.wireCount = cct; src.detected.push("wireCount"); src.cctSource = cctSource; }
+    else notes.push("The result has no process CCT - enter the CCT count by hand.");
+
+    const other = hints.branchBasis === "branch_points" ? "branch_segments" : "branch_points";
+    const branch = intOf(tb[hints.branchBasis]) ?? intOf(tb[other]);
+    if (branch !== null) {
+      payload.branchCount = branch; src.detected.push("branchCount");
+      src.branchSource = (intOf(tb[hints.branchBasis]) !== null ? hints.branchBasis : other).replace("_", " ") + (str(tb.branch_source) ? ": " + str(tb.branch_source) : "");
+    } else notes.push("The result has no branch count - enter it by hand.");
+
+    const cust = analyzerCustomer(tb, hints);
+    if (cust) { payload.customer = cust.name; src.detected.push("customer"); src.customerSource = cust.how; }
+
+    const texts = (r.notes || []).map(str).concat((r.bom || []).map(b => `${str(b.description)} ${str(b.remarks)} ${str(b.specification)}`));
+    const specials = [], evidence = {};
+    for (const [name, words] of Object.entries(hints.specials)) {
+      for (const t of texts) {
+        const w = words.find(w => t.toLowerCase().includes(w.toLowerCase()));
+        if (w) { specials.push(name); const i = t.toLowerCase().indexOf(w.toLowerCase()); evidence[name] = t.slice(Math.max(0, i - 40), i + w.length + 60).trim(); break; }
+      }
+    }
+    payload.specials = specials; src.detected.push("specials"); src.specialsEvidence = evidence;
+
+    src.bom = (r.bom || []).filter(b => str(b.part_number) || str(b.description)).map(b => ({
+      partNo: str(b.part_number), companyPn: str(b.company_pn), description: str(b.description) || str(b.specification),
+      category: str(b.category), qty: Number.isFinite(Number(b.quantity)) && str(b.quantity) !== "" ? Number(b.quantity) : null
+    }));
+    src.notes = notes;
+    return payload;
+  }
+
+  /** The Analyzer's exported "<drawing>_BOM.xlsx" (sheets as arrays of rows) -> a result-like object for fromAnalyzerResult(). */
+  function analyzerWorkbookToResult(sheets) {
+    const bomSheet = sheets.BOM || sheets[Object.keys(sheets)[0]] || [];
+    const labels = {
+      "drawing no.": "drawing_number", "title": "title", "model": "model", "rev.": "revision", "company": "company",
+      "wire count": "wire_count", "process cct": "process_cct", "circuits": "circuit_count",
+      "wire count printed": "printed_wire_count", "branch points": "branch_points", "branch segments": "branch_segments"
+    };
+    const sourceOf = { wire_count: "wire_count_source", process_cct: "process_cct_source", branch_points: "branch_source" };
+    const tb = {}, bom = [];
+    let header = -1;
+    bomSheet.forEach((row, i) => {
+      const a = str(row && row[0]).toLowerCase();
+      if (header < 0) {
+        if (a === "category") { header = i; return; }
+        const k = labels[a];
+        if (!k) return;
+        const v = str(row[1]);
+        tb[k] = v === "(not printed on drawing)" ? "" : v;
+        if (sourceOf[k] && str(row[2])) tb[sourceOf[k]] = str(row[2]);
+        return;
+      }
+      if (!row || !row.some(c => str(c))) return;
+      const [category, part_number, company_pn, description, specification, quantity, unit, used_at, remarks] = row.map(str);
+      bom.push({ category, part_number, company_pn, description, specification, quantity, unit, used_at, remarks });
+    });
+    if (header < 0 && !Object.keys(tb).length) throw new Error("This is not a BOM Analyzer workbook (no BOM sheet with Drawing No. / Category).");
+    const notes = [];
+    let inNotes = false;
+    for (const row of sheets.Check || []) {
+      const a = str(row && row[0]);
+      if (a === "Notes") { inNotes = true; continue; }
+      if (inNotes && a) notes.push(a);
+    }
+    return { title_block: tb, bom, notes };
+  }
+
+  return { INPUT_SCHEMA, DEFAULT_MASTER, ANALYZER_HINTS, fromAnalyzerResult, analyzerWorkbookToResult, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity };
 });

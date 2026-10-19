@@ -1,6 +1,5 @@
 const CACHE="mfg-lt-v3-0";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=3.0",
-  "./analyzer.html","./analyzer-core.js?v=1.0","./analyzer.js?v=1.0","./vendor/xlsx.full.min.js"];
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=3.0","./vendor/xlsx.full.min.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -31,18 +30,14 @@ self.addEventListener("fetch", event => {
   // Always try to get the main document from the network first.
   // This prevents an old cached index.html from hiding new deployments.
   if (event.request.mode === "navigate") {
-    // Each page (index.html, analyzer.html) is cached under its own address, without the query.
-    const page = new URL(event.request.url);
-    page.search = "";
     event.respondWith(
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          if (response.ok) caches.open(CACHE).then(cache => cache.put(page.href, copy));
+          caches.open(CACHE).then(cache => cache.put("./index.html", copy));
           return response;
         })
-        .catch(() => caches.match(page.href, { ignoreSearch: true })
-          .then(hit => hit || caches.match("./index.html")))
+        .catch(() => caches.match("./index.html"))
     );
     return;
   }
