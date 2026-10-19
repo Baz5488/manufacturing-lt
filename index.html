@@ -183,10 +183,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.0 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.1 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.0"></script>
+<script src="lt-core.js?v=3.1"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -235,7 +235,7 @@ function renderAll(){renderInputs();renderMaster()}
 function renderInputs(){
  const keepCustomer=$("customer").value,keepSpecials=new Set([...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)]?.[0]));
  $("customer").innerHTML='<option value="">-- Select customer --</option>'+master.customers.map(x=>`<option>${esc(x[0])}</option>`).join("");
- $("specials").innerHTML=master.specials.map((x,i)=>`<label class="check"><input type="checkbox" data-i="${i}" ${keepSpecials.has(x[0])?"checked":""}> ${esc(x[0])} <span class="muted">(+${x[1]} days)</span></label>`).join("");
+ $("specials").innerHTML=master.specials.map((x,i)=>`<label class="check"><input type="checkbox" data-i="${i}" ${keepSpecials.has(x[0])?"checked":""}> ${esc(x[0])} <span class="muted">(${signedDays(x[1])})</span></label>`).join("");
  if(master.customers.some(x=>x[0]===keepCustomer))$("customer").value=keepCustomer;
  customerInfo();
 }
@@ -265,7 +265,7 @@ function calculate(){
  $("baseLT").textContent=rule.baseDays===null?"Discuss":`${rule.baseDays} days (${rule.baseWeeks} weeks)`;
  $("drawingLT").textContent=`${rule.drawingDays} days`;
  $("difficultyLT").textContent=d.buffer===null?`Discuss (L${d.level}, ${r.levelSource})`:`+${d.buffer} days (L${d.level}, ${r.levelSource})`;
- $("specialLT").textContent=`+${r.specialDays} days`;
+ $("specialLT").textContent=signedDays(r.specialDays);
  if(r.status==="review"){
   $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";$("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
   return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
@@ -460,6 +460,7 @@ function download(name,data,type){const a=document.createElement("a");a.href=URL
 function notice(id,msg,cls){$(id).innerHTML=`<div class="notice ${cls}">${msg}</div>`}
 function localISODate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
+function signedDays(n){n=Number(n)||0;return `${n<0?"−":"+"}${Math.abs(n)} days`}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 init();

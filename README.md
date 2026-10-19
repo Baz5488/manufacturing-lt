@@ -97,3 +97,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - The source box shows **how** each value was found (CCT / branch count source, customer, the note that ticked each special treatment). Links can carry this as `cctSource` / `branchSource`.
 - Converters are in `lt-core.js`: `LTCore.fromAnalyzerResult(result)` and `LTCore.analyzerWorkbookToResult(sheets)`.
 - Excel files are read with SheetJS Community Edition 0.18.5 (`vendor/xlsx.full.min.js`, Apache-2.0, see `vendor/SHEETJS-LICENSE`), loaded only when an .xlsx is chosen.
+
+## V3.1 update — Rocket special treatment
+- **Rocket** (−14 days) is a default special treatment. Rocket is a business decision and is not shown on drawings, so it is never ticked automatically: tick it by hand, or send `specials=Rocket` in a link.
+- Master data already saved in a browser gets Rocket added once, on the first load of v3.1. Your own changes are kept, and Rocket is not added back if you later rename or change it.
+- Special-treatment days can be negative; they are shown as "−14 days".
+- Like the other buffers, Rocket's −14 days is added before the quantity factor is applied.
