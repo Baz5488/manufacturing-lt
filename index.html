@@ -185,10 +185,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.2 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.3 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.2"></script>
+<script src="lt-core.js?v=3.3"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -314,6 +314,8 @@ function saveCapacityUrl(){
  fetchCapacity(true).then(d=>notice("capacityStatus",`✓ Connected. Capacity from ${d.activeWeeks} week(s) of FG data (${esc(d.fromWeek)} – ${esc(d.toWeek)}); ${d.etds.length} ETD(s) with booked load. Total ${fmtNum(d.capacity.TOTAL&&(d.capacity.TOTAL.value??d.capacity.TOTAL.average))} CCT/week (${esc(d.capacity.TOTAL&&d.capacity.TOTAL.value!==undefined?d.capacity.TOTAL.stat||"median":"average")}).`,"good"))
   .catch(e=>notice("capacityStatus","✕ "+esc(e.message),"bad"));
 }
+function bookedCell(c){return fmtNum(c.booked)+(c.carriedIn>0?`<div class="muted" style="font-size:11px">incl. ${fmtNum(c.carriedIn)} carried in</div>`:"")}
+function carryNote(p){return p.candidates.some(c=>c.carriedIn>0)?'<p class="muted" style="margin:6px 0 0">Booked includes backlog (overdue ETDs) and overload that earlier weeks could not finish, carried forward week by week.</p>':""}
 function fmtNum(n){return Math.round(Number(n)||0).toLocaleString("en-US")}
 function checkCapacity(r){
  const run=capacityRun, box=$("capacityBox"), wp=$("wpType").value, need=r.cct*r.qty;
@@ -332,10 +334,10 @@ function checkCapacity(r){
    const later=Math.round((Date.parse(p.suggested.etd)-Date.parse(r.etd))/86400000);
    head=`<div>Capacity-based ETD</div><div class="etd2">${formatDate(new Date(p.suggested.etd+"T00:00:00"))}</div><div class="muted">${later<=3?"Fits in the first ETD after the formula ETD.":`${later} days after the formula ETD — earlier ETDs are full.`}</div>`;
   }
-  const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${formatDate(new Date(c.etd+"T00:00:00"))}</td><td class="right">${fmtNum(c.booked)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
+  const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${formatDate(new Date(c.etd+"T00:00:00"))}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
   box.innerHTML=`<div class="cap"><h3>Production capacity · ${esc(typeLabel)}</h3>${head}
    <p class="muted">This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
-   ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:""}</div>`;
+   ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
   // Save the result on the history entry of this calculation.
   const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=p.suggested?p.suggested.etd:"";h[0].capNote=note;saveHistory(h);renderHistory()}
  }).catch(e=>{if(run===capacityRun)box.innerHTML=`<div class="notice warn">Capacity check failed: ${esc(e.message)}</div>`});
@@ -349,10 +351,10 @@ function rocketCapacity(r,feed,need,wp){
  if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)} — keep the Rocket ETD ${fd(p.deadline)} and check the load by hand.</div>`;note="Rocket: no capacity data";}
  else if(p.status==="short"){head=`<div>Rocket ETD (must achieve)</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ Capacity short by ${fmtNum(p.shortBy)} CCT in that week. ${p.need>p.capacity?`The order alone (${fmtNum(p.need)} CCT) is more than one week's capacity (${fmtNum(p.capacity)}): split it over the weeks before the Rocket ETD.`:"Move other items to make room: Rocket is a must-achieve service."}</div>`;note=`Rocket: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
  else{head=`<div>Rocket ETD — earliest with free capacity</div><div class="etd2">${fd(p.suggested.etd)}</div><div class="muted">${p.daysEarlier>0?`${p.daysEarlier} days before the standard Rocket ETD (${fd(p.deadline)}).`:`On the standard Rocket ETD; earlier weeks are full.`}</div>`;note=p.daysEarlier>0?`Rocket: ${p.daysEarlier} days early`:"Rocket: on standard ETD";capEtd=p.suggested.etd;}
- const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?" <span class=\"muted\">(Rocket ETD)</span>":""}</td><td class="right">${fmtNum(c.booked)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
+ const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?" <span class=\"muted\">(Rocket ETD)</span>":""}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
  box.innerHTML=`<div class="cap"><h3>🚀 Rocket · production capacity · ${esc(typeLabel)}</h3>${head}
   <p class="muted">Searched from ${fd(p.floor)} (start + drawing breakdown ${r.cctRule.drawingDays} days + 1 production week) to the Rocket ETD. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
-  ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:""}</div>`;
+  ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
 }
 
