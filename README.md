@@ -123,3 +123,11 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Before v3.3, backlog stayed in the current week, and overload beyond one week's capacity was dropped. Later weeks therefore looked freer than they were.
 - Needs the updated Tracker (`Code.gs`) or `CapacityFeed.gs`. Both now send **every ETD up to 26 weeks ahead**, not only the next 10. Before, weeks after the 10th ETD date showed 0 booked.
 - Items without a date in column J (NO ETD) are still left out.
+
+## V3.4 update — New versions show up on the next visit
+- Before v3.4, a browser could keep showing the previous version for up to 10 minutes after a deploy. GitHub Pages lets browsers reuse a page for that long, and the offline cache accepted that copy. This is why Edge and Chrome could show different versions.
+- The page is now always checked with GitHub Pages (a small "has it changed?" request), and a new version appears on the next visit.
+  - The service worker itself is also checked on every visit.
+  - Its offline files are fetched fresh when it installs.
+- Offline use is unchanged: without a network the last saved version opens.
+- Browsers still on v3.3 need one hard reload (Ctrl+Shift+R), or a wait of about 10 minutes, to get v3.4. After that, updates come through by themselves.
