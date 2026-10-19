@@ -204,8 +204,9 @@
    *   today: "2026-10-19"   // unfinished items with a past ETD (overdue) are booked in this week
    * }
    * order: { load: CCT x QTY, wpType: "P" | "E" | "-" | "/" | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
-   * Finds the first weekly ETD on or after `earliest` whose free capacity (average - booked) fits the load.
-   * ETDs in the same week (Mon-Sun) share one week's capacity. Weeks beyond the feed have nothing booked.
+   * Finds the first weekly ETD on or after `earliest` whose free capacity (capacity - booked) fits the load.
+   * ETDs in the same week (Mon-Sun) share one week's capacity. Load a week cannot finish (overdue backlog, overfull
+   * weeks) is carried into the following weeks. Weeks beyond the feed have only carried load.
    */
   const WEEK_MS = 7 * 86400000;
   const ROCKET = "rocket";
@@ -234,6 +235,28 @@
     return { bookedByWeek, etdWeekday };
   }
 
+  /**
+   * Load per week with overload carried forward: a week's load = its own ETDs + what earlier weeks could not finish
+   * (from the current week on). Returns week (UTC ms) -> { booked, carriedIn }.
+   */
+  function weekQueue(feed, bookedByWeek, capacity) {
+    const weeks = Object.keys(bookedByWeek).map(Number);
+    const todayOk = /^\d{4}-\d{2}-\d{2}$/.test(feed.today || "");
+    const starts = weeks.concat(todayOk ? [weekStartUTC(isoToUTC(feed.today))] : []);
+    let wk = starts.length ? Math.min.apply(null, starts) : Infinity; // nothing booked: nothing to carry
+    let carry = 0;
+    const done = {};
+    return function at(week) {
+      while (wk <= week) {
+        const booked = (bookedByWeek[wk] || 0) + carry;
+        done[wk] = { booked, carriedIn: carry };
+        carry = Math.max(0, booked - capacity);
+        wk += WEEK_MS;
+      }
+      return done[week] || { booked: bookedByWeek[week] || 0, carriedIn: 0 };
+    };
+  }
+
   function capacityOf(feed, type) {
     const capKey = type || "TOTAL";
     const cap = (feed && feed.capacity && feed.capacity[capKey]) || {};
@@ -256,15 +279,16 @@
     if (capacity <= 0) return Object.assign(base, { status: "no-capacity", candidates: [], suggested: null });
 
     const { bookedByWeek, etdWeekday } = bookedLoad(feed, type);
+    const queue = weekQueue(feed, bookedByWeek, capacity);
     const deadline = isoToUTC(order.deadline);
     let t = Math.min(isoToUTC(order.floor), deadline);
     while (new Date(t).getUTCDay() !== etdWeekday) t += 86400000;
     const candidates = [];
     for (let wk = weekStartUTC(Math.min(t, deadline)); wk <= weekStartUTC(deadline); wk += WEEK_MS) {
       const day = Math.min(Math.max(wk + ((etdWeekday + 6) % 7) * 86400000, t), deadline);
-      const booked = bookedByWeek[wk] || 0;
+      const { booked, carriedIn } = queue(wk);
       const free = capacity - booked;
-      candidates.push({ etd: utcToIso(day), booked, free, fits: free >= need });
+      candidates.push({ etd: utcToIso(day), booked, carriedIn, free, fits: free >= need });
     }
     const suggested = candidates.find(c => c.fits) || null;
     const last = candidates[candidates.length - 1];
@@ -285,6 +309,7 @@
     if (capacity <= 0) return { status: "no-capacity", type: capKey, capacity: 0, stat, need, candidates: [], suggested: null };
 
     const { bookedByWeek, etdWeekday } = bookedLoad(feed, type);
+    const queue = weekQueue(feed, bookedByWeek, capacity);
 
     // First ETD weekday on or after `earliest`.
     let t = isoToUTC(order.earliest);
@@ -293,9 +318,9 @@
     const candidates = [];
     let suggested = null;
     for (let i = 0; i < opt.weeks; i++, t += WEEK_MS) {
-      const booked = bookedByWeek[weekStartUTC(t)] || 0;
+      const { booked, carriedIn } = queue(weekStartUTC(t));
       const free = capacity - booked;
-      const row = { etd: utcToIso(t), booked, free, fits: free >= need };
+      const row = { etd: utcToIso(t), booked, carriedIn, free, fits: free >= need };
       if (candidates.length < opt.show) candidates.push(row);
       if (!suggested && row.fits) { suggested = row; if (candidates.length >= opt.show) break; }
     }

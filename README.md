@@ -117,3 +117,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - This applies to any special treatment with negative days. The *Short-LT reduction* row in the result shows it, e.g. "−7 days (14 × 0.50)".
   - It replaces the v3.1 behaviour, where the −14 was multiplied by the factor.
 - Core: `LTCore.calcLeadTime()` returns `rocket: { deadline, floor }`; `LTCore.planRocket(feed, { load, wpType, floor, deadline })`.
+
+## V3.3 update — Backlog carried forward in the capacity check
+- Load a week cannot finish is now **carried into the following weeks**. This covers overdue items (backlog, booked in the current week) and weeks booked above capacity. The capacity tables show "incl. N carried in" under Booked CCT.
+- Before v3.3, backlog stayed in the current week, and overload beyond one week's capacity was dropped. Later weeks therefore looked freer than they were.
+- Needs the updated Tracker (`Code.gs`) or `CapacityFeed.gs`. Both now send **every ETD up to 26 weeks ahead**, not only the next 10. Before, weeks after the 10th ETD date showed 0 booked.
+- Items without a date in column J (NO ETD) are still left out.
