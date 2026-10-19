@@ -65,7 +65,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="grid">
 <div class="card">
 <h2>Calculation Inputs</h2>
-<div class="actions"><button class="secondary" id="importInputBtn">Load from BOM / Drawing JSON</button><input id="importInput" type="file" accept=".json" style="display:none"></div>
+<div class="actions"><button class="secondary" id="importInputBtn">Load BOM Analyzer result / JSON</button><input id="importInput" type="file" accept=".json,.xlsx" style="display:none"></div>
 <div id="sourceBox" class="notice source" style="display:none;margin:0 0 14px"><div id="sourceText"></div><button class="secondary small" id="clearSource">Dismiss</button></div>
 <div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branch" type="number" min="0" step="1" placeholder="e.g. 25"></div></div>
 <div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P (e.g. 02P09)</option><option value="E">E (e.g. 03E10)</option><option value="-">- (e.g. 01-10)</option><option value="/">/ (e.g. 02/08)</option></select></div></div>
@@ -160,7 +160,8 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p class="muted">Version 2.6. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
 <h2>Integration (BOM Analyzer / Drawing Recognition)</h2>
 <p>Upstream tools can pre-fill the calculator. Values are filled in only; a person reviews them and presses Calculate. Wire count is used as the CCT count.</p>
-<p><b>1. Input JSON</b> — use <b>Load from BOM / Drawing JSON</b> on the Calculator tab. <a href="#" id="sampleInput">Download a sample file</a>.</p>
+<p><b>PROTO CONTROL Analyzer (desktop Harness BOM Analyzer)</b> — its <b>Quick check</b> opens this calculator with a pre-filled link. A finished analysis can also be loaded as a file with <b>Load BOM Analyzer result / JSON</b>: <code>work/&lt;drawing&gt;/result.json</code> or the exported <code>&lt;drawing&gt;_BOM.xlsx</code>. CCT = process CCT (factory QTY CCT), branch count = branch segments, customer from the title block / drawing-number prefix, special treatments from keywords in the notes and BOM lines.</p>
+<p><b>1. Input JSON</b> — use <b>Load BOM Analyzer result / JSON</b> on the Calculator tab. <a href="#" id="sampleInput">Download a sample file</a>.</p>
 <pre>{
   "schema": "manufacturing-lt/input@1",
   "customer": "KOBELCO",
@@ -175,17 +176,17 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
     "bom": [{ "partNo": "CN-001", "description": "Connector 12P", "qty": 2, "leadTimeDays": 21 }]
   }
 }</pre>
-<p><b>2. Link</b> — e.g. <code>index.html?wireCount=180&amp;branchCount=25&amp;customer=KOBELCO&amp;qty=20&amp;specials=Marker,Braiding&amp;drawingNo=WH-12345</code></p>
+<p><b>2. Link</b> — e.g. <code>index.html?wireCount=180&amp;branchCount=25&amp;customer=KOBELCO&amp;qty=20&amp;specials=Marker,Braiding&amp;drawingNo=WH-12345</code>. Optional <code>cctSource</code> / <code>branchSource</code> explain how the counts were made and are shown with the loaded values.</p>
 <p><b>3. Shared formula</b> — <code>lt-core.js</code> exposes <code>LTCore.parseInput(payload, master)</code> and <code>LTCore.calcLeadTime(inputs, master)</code> for use in another app.</p>
 <p class="muted">BOM part lead times are shown but not added to the LT yet; the rule for combining material and manufacturing LT is still to be decided.</p>
 <h2>Deployment</h2>
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v2.9 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.0 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=2.9"></script>
+<script src="lt-core.js?v=3.0"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -344,12 +345,40 @@ function prefillFromURL(){
  const q=new URLSearchParams(location.search);if(![...q.keys()].length)return;
  const g=(...k)=>{for(const x of k)if(q.has(x))return q.get(x)};
  const payload={customer:g("customer"),wireCount:g("wireCount","cct"),branchCount:g("branchCount","branch"),qty:g("qty"),startDate:g("startDate","start"),specials:g("specials"),
-  source:{tool:g("tool")||"URL",drawingNo:g("drawingNo","drawing"),revision:g("revision","rev")}};
+  source:{tool:g("tool")||"URL",drawingNo:g("drawingNo","drawing"),revision:g("revision","rev"),cctSource:g("cctSource"),branchSource:g("branchSource")}};
  for(const k of Object.keys(payload))if(payload[k]===undefined)delete payload[k];
  const detected=g("detected");payload.source.detected=detected?detected.split(","):["wireCount","branchCount","qty","customer","startDate","specials"].filter(k=>k in payload);
  applyInput(payload);
 }
-function importInputFile(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{applyInput(JSON.parse(rd.result))}catch(_){notice("inputNotice","Invalid input JSON file.","bad")}finally{e.target.value=""}};rd.readAsText(f)}
+// Accepts an input@1 JSON, the BOM Analyzer's result.json, or its exported <drawing>_BOM.xlsx.
+function importInputFile(e){
+ const f=e.target.files[0];if(!f)return;
+ const rd=new FileReader();
+ if(/\.xlsx$/i.test(f.name)){
+  rd.onload=()=>loadXlsxLib().then(()=>{
+   const wb=XLSX.read(rd.result,{type:"array"}),sheets={};
+   wb.SheetNames.forEach(n=>sheets[n]=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:"",raw:true}));
+   applyAnalyzer(LTCore.analyzerWorkbookToResult(sheets),f.name);
+  }).catch(err=>notice("inputNotice","Could not read this workbook: "+esc(err.message||err),"bad")).finally(()=>e.target.value="");
+  rd.readAsArrayBuffer(f);return;
+ }
+ rd.onload=()=>{
+  try{const j=JSON.parse(rd.result);j&&j.title_block?applyAnalyzer(j,f.name):applyInput(j)}
+  catch(_){notice("inputNotice","Invalid input JSON file.","bad")}
+  finally{e.target.value=""}
+ };
+ rd.readAsText(f);
+}
+function applyAnalyzer(result,fileName){
+ const p=LTCore.fromAnalyzerResult(result);
+ p.source.tool=`BOM Analyzer (${fileName})`;
+ applyInput(p);
+}
+let xlsxLib=null;
+function loadXlsxLib(){
+ if(window.XLSX)return Promise.resolve();
+ return xlsxLib=xlsxLib||new Promise((ok,fail)=>{const s=document.createElement("script");s.src="vendor/xlsx.full.min.js";s.onload=ok;s.onerror=()=>{xlsxLib=null;fail(new Error("the Excel reader could not be loaded (offline?)"))};document.head.appendChild(s)});
+}
 function applyInput(payload){
  const {inputs,warnings}=LTCore.parseInput(payload,master);
  const filled=[];
@@ -359,9 +388,13 @@ function applyInput(payload){
  if(payload.specials!==undefined){document.querySelectorAll("#specials input").forEach(x=>x.checked=inputs.specials.includes(master.specials[Number(x.dataset.i)][0]));filled.push("specials")}
  const src=inputs.source||{};
  const detected=new Set((Array.isArray(src.detected)?src.detected:filled).filter(k=>filled.includes(k)));
- importSource={tool:src.tool||"Imported JSON",drawingNo:src.drawingNo||"",revision:src.revision||"",bom:Array.isArray(src.bom)?src.bom:[],detected,edited:new Set()};
+ importSource={tool:src.tool||"Imported JSON",drawingNo:src.drawingNo||"",revision:src.revision||"",bom:Array.isArray(src.bom)?src.bom:[],detected,edited:new Set(),
+  cctSource:String(src.cctSource||""),branchSource:String(src.branchSource||""),customerSource:String(src.customerSource||""),specialsEvidence:src.specialsEvidence||{}};
  customerInfo();renderSource();
  $("inputNotice").innerHTML="";
+ if(/^printed/i.test(importSource.cctSource)&&detected.has("wireCount"))warnings.unshift("CCT is the count printed on the drawing, not the factory process CCT - check it (run Quick count in the BOM Analyzer).");
+ if(Array.isArray(src.notes))warnings.push(...src.notes);
+ if(payload.customer===undefined&&src.tool&&/analyzer/i.test(src.tool))warnings.push("Customer not recognised from the drawing - select it.");
  if(warnings.length)notice("inputNotice","⚠️ "+warnings.map(esc).join("<br>"),"warn");
 }
 function markEdited(id){
@@ -383,6 +416,10 @@ function renderSource(){
  box.style.display="block";
  $("sourceText").innerHTML=`<b>Loaded from ${esc(importSource.tool)}</b>${importSource.drawingNo?` — drawing ${esc(importSource.drawingNo)}${importSource.revision?` rev ${esc(importSource.revision)}`:""}`:""}<br>
  Auto-detected: ${[...importSource.detected].map(k=>labels[k]).join(", ")||"none"}${importSource.edited.size?` · Edited by hand: ${[...importSource.edited].map(k=>labels[k]).join(", ")}`:""}
+ ${importSource.cctSource?`<br>CCT: ${esc(importSource.cctSource)}`:""}
+ ${importSource.branchSource?`<br>Branch: ${esc(importSource.branchSource)}`:""}
+ ${importSource.customerSource?`<br>Customer: ${esc(importSource.customerSource)}`:""}
+ ${Object.keys(importSource.specialsEvidence).map(k=>`<br>${esc(k)}: “${esc(importSource.specialsEvidence[k])}”`).join("")}
  ${importSource.bom.length?`<br>BOM: ${importSource.bom.length} lines${bomLT.length?`, longest part LT ${Math.max(...bomLT)} days (not included in the LT yet)`:""}`:""}`;
 }
 function clearImportSource(){importSource=null;renderSource()}

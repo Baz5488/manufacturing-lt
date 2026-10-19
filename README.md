@@ -87,3 +87,13 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - This app is renamed **PROTO CONTROL · Planner** (title, header, PWA name). "ASSY FINDER link" is now **Tracker link**.
 - Nothing else changes: saved master data, history and the saved Tracker link stay in place, and the feed id `assy-finder/capacity@1` is kept so existing links keep working.
 - Cache bumped to `mfg-lt-v2-9`.
+
+## V3.0 update — Load results from the PROTO CONTROL Analyzer
+- The Analyzer is the desktop **Harness BOM Analyzer** (reads the drawing, company parts DB, factory WOS). Its **Quick check** already opens this calculator with a pre-filled link.
+- New: **Load BOM Analyzer result / JSON** also takes a finished analysis as a file: `work/<drawing>/result.json` or the exported `<drawing>_BOM.xlsx` (for when the result is on another PC or came by mail).
+  - CCT = **process CCT** (factory QTY CCT), else cut wire pieces, else the count printed on the drawing (with a warning: not the factory count).
+  - Branch count = **branch segments** (as `calculator_branch_count` in the Analyzer's `quick_customers.json`), else branch points.
+  - Customer from the title-block company, else the drawing-number prefix; special treatments from keywords in the drawing notes and BOM lines — the same hints as `quick_customers.json` (`LTCore.ANALYZER_HINTS`).
+- The source box shows **how** each value was found (CCT / branch count source, customer, the note that ticked each special treatment). Links can carry this as `cctSource` / `branchSource`.
+- Converters are in `lt-core.js`: `LTCore.fromAnalyzerResult(result)` and `LTCore.analyzerWorkbookToResult(sheets)`.
+- Excel files are read with SheetJS Community Edition 0.18.5 (`vendor/xlsx.full.min.js`, Apache-2.0, see `vendor/SHEETJS-LICENSE`), loaded only when an .xlsx is chosen.
