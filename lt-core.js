@@ -163,14 +163,18 @@
     const levelSource = customerLevel === branchLevel ? "customer & branch" : appliedLevel === customerLevel ? "customer" : "branch count";
 
     const specials = (inputs.specials || []).map(n => m.specials.find(s => s[0] === n)).filter(Boolean);
-    const specialDays = specials.reduce((s, x) => s + Number(x[1]), 0);
+    // Buffers (positive days) are added before the quantity factor. Shortening treatments (negative days, e.g.
+    // Rocket -14) come off after it, scaled by (2 - factor) and never below 0: a bigger lot is harder to rush
+    // (factor 1.5 -> -7 days, factor 2.0 or more -> 0).
+    const specialDays = specials.reduce((s, x) => s + Math.max(0, Number(x[1])), 0);
+    const shortenDays = specials.reduce((s, x) => s + Math.min(0, Number(x[1])), 0);
     const qf = findQtyFactor(m, qty);
 
     const result = {
       status: "ok", errors: [],
       customer: c[0], cct, branch, qty, startDate,
       cctRule: rule, branchRule: bl, customerLevel, branchLevel, appliedLevel, levelSource, difficulty: d,
-      specials: specials.map(s => s[0]), specialDays, qtyFactor: qf || null,
+      specials: specials.map(s => s[0]), specialDays, shortenDays, shortenScale: null, reductionDays: 0, qtyFactor: qf || null,
       preQtyLT: null, totalLT: null, etd: null
     };
     if (rule.baseDays === null || d.buffer === null || !qf) {
@@ -178,7 +182,9 @@
       return result;
     }
     result.preQtyLT = rule.baseDays + rule.drawingDays + d.buffer + specialDays;
-    result.totalLT = Math.ceil(result.preQtyLT * Number(qf.factor));
+    result.shortenScale = Math.max(0, 2 - Number(qf.factor));
+    result.reductionDays = Math.round(-shortenDays * result.shortenScale);
+    result.totalLT = Math.max(1, Math.ceil(result.preQtyLT * Number(qf.factor)) - result.reductionDays);
     result.etd = addDays(startDate, result.totalLT);
     // Rocket = must-achieve short-LT service: the ETD above (with Rocket's days) is the latest allowed date;
     // an earlier ETD is better when capacity allows, but not before drawing breakdown + one production week.

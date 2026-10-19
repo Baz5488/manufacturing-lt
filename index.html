@@ -91,6 +91,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <tr><td>Special Treatment Buffer</td><td class="right" id="specialLT">—</td></tr>
 <tr><td>Manufacturing LT before Qty Factor</td><td class="right" id="preQtyLT">—</td></tr>
 <tr><td>Qty Factor</td><td class="right" id="qtyFactor">—</td></tr>
+<tr id="reductionRow" style="display:none"><td>Short-LT reduction <span class="muted">(after Qty Factor)</span></td><td class="right" id="reductionLT">—</td></tr>
 <tr><th>Total Manufacturing LT</th><th class="right" id="sumLT">—</th></tr>
 </table>
 <div id="dateBox" class="notice good" style="display:none;text-align:center"><div id="etdLabel">Estimated ETD</div><strong id="etd" style="font-size:22px"></strong></div>
@@ -154,7 +155,8 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <section id="about" class="panel">
 <div class="card">
 <h2>Calculation Formula</h2>
-<p><b>Manufacturing LT = (Base LT + Drawing Breakdown LT + Difficulty Buffer + Special Treatment Buffer) × Quantity Factor</b></p>
+<p><b>Manufacturing LT = (Base LT + Drawing Breakdown LT + Difficulty Buffer + Special Treatment Buffer) × Quantity Factor − Short-LT reduction</b></p>
+<p class="muted">Short-LT reduction = days of shortening treatments (negative days, e.g. Rocket −14) × (2 − Quantity Factor), never below 0: a bigger lot is harder to rush (factor 1.5 → −7 days).</p>
 <p><b>Applied Difficulty Level = higher of Customer Level and Branch Count Level</b></p>
 <p><b>ETD = Manufacturing Start Date + Total Manufacturing LT</b></p>
 <p class="muted">Version 2.6. Calendar days are used for ETD calculation. CCT above 1,000 and Level 5 require advance discussion.</p>
@@ -266,6 +268,8 @@ function calculate(){
  $("drawingLT").textContent=`${rule.drawingDays} days`;
  $("difficultyLT").textContent=d.buffer===null?`Discuss (L${d.level}, ${r.levelSource})`:`+${d.buffer} days (L${d.level}, ${r.levelSource})`;
  $("specialLT").textContent=signedDays(r.specialDays);
+ $("reductionRow").style.display=r.shortenDays?"":"none";
+ $("reductionLT").textContent=r.shortenDays&&r.shortenScale!==null?`−${r.reductionDays} days (${-r.shortenDays} × ${(Math.round(r.shortenScale*100)/100).toFixed(2)})`:"—";
  if(r.status==="review"){
   $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";$("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
   return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
