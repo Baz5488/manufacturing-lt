@@ -1,5 +1,5 @@
-const CACHE="mfg-lt-v2-6";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=2.6"];
+const CACHE="mfg-lt-v2-7";
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=2.7"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -23,6 +23,9 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+
+  // Other sites (e.g. the ASSY FINDER capacity feed) always go to the network, never the cache.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
 
   // Always try to get the main document from the network first.
   // This prevents an old cached index.html from hiding new deployments.
