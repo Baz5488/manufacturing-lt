@@ -150,3 +150,4 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   It marks the set that frees enough CCT, or says when even all of them are not enough.
 - **Master Data → Production Capacity → Tracker page link**: the Tracker you open in the browser. It can be left empty when the capacity link is the Tracker itself.
 - Only the Rocket ETD, the CCT short, the WP type and the order's CCT are put in the link. ASSY numbers and customers stay in the Tracker; the public capacity feed still has totals only.
+- WP type "-" (e.g. 01-10) is no longer a choice. It is made too rarely (a few CCT a week) to plan with; its load still counts in "Any (total capacity)".
