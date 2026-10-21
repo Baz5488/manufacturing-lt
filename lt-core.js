@@ -203,7 +203,7 @@
    *   etds: [ { etd: "2026-10-23", overdue: false, byType: { P: 1900, E: 700 } } ],  // CCT x QTY already booked
    *   today: "2026-10-19"   // unfinished items with a past ETD (overdue) are booked in this week
    * }
-   * order: { load: CCT x QTY, wpType: "P" | "E" | "-" | "/" | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
+   * order: { load: CCT x QTY, wpType: "P" | "E" | "-" | "/" | "P+E" (types combined) | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
    * Finds the first weekly ETD on or after `earliest` whose free capacity (capacity - booked) fits the load.
    * ETDs in the same week (Mon-Sun) share one week's capacity. Load a week cannot finish (overdue backlog, overfull
    * weeks) is carried into the following weeks. Weeks beyond the feed have only carried load.
@@ -215,8 +215,14 @@
   function utcToIso(t) { return new Date(t).toISOString().slice(0, 10); }
   function weekStartUTC(t) { const day = new Date(t).getUTCDay(); return t - ((day + 6) % 7) * 86400000; }
 
-  /** Booked CCT x QTY per week (Monday, UTC ms) for a WP type ("" = all), and the usual ETD weekday (default Friday). */
+  /** "P+E" -> ["P", "E"]; "" -> [] (= all types). */
+  function wpTypes(type) {
+    return String(type || "").split("+").map(t => t.trim()).filter(Boolean);
+  }
+
+  /** Booked CCT x QTY per week (Monday, UTC ms) for a WP type ("" = all, "P+E" = both), and the usual ETD weekday (default Friday). */
   function bookedLoad(feed, type) {
+    const types = wpTypes(type);
     // Booked load per week, and the usual ETD weekday (most common among upcoming ETDs; default Friday).
     const bookedByWeek = {};
     const weekdayCount = {};
@@ -224,7 +230,7 @@
       if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(e.etd || "")) return;
       const t = isoToUTC(e.etd);
       const by = e.byType || {};
-      const booked = type ? Number(by[type]) || 0 : Object.keys(by).reduce((s, k) => s + (Number(by[k]) || 0), 0);
+      const booked = (types.length ? types : Object.keys(by)).reduce((s, k) => s + (Number(by[k]) || 0), 0);
       // Overdue (past ETD, unfinished) load still has to be produced: book it in the current week.
       const todayOk = /^\d{4}-\d{2}-\d{2}$/.test(feed.today || "");
       const wk = e.overdue && todayOk ? weekStartUTC(isoToUTC(feed.today)) : weekStartUTC(t);
@@ -257,10 +263,17 @@
     };
   }
 
+  // Combined types ("P+E") plan with the sum of their weekly capacities.
   function capacityOf(feed, type) {
-    const capKey = type || "TOTAL";
-    const cap = (feed && feed.capacity && feed.capacity[capKey]) || {};
-    return { capKey, capacity: Number(cap.value ?? cap.average) || 0, stat: cap.value !== undefined ? (cap.stat || "median") : "average" };
+    const types = wpTypes(type);
+    const keys = types.length ? types : ["TOTAL"];
+    const caps = keys.map(k => (feed && feed.capacity && feed.capacity[k]) || {});
+    const stats = caps.map(c => c.value !== undefined ? (c.stat || "median") : "average");
+    return {
+      capKey: types.length ? types.join("+") : "TOTAL",
+      capacity: caps.reduce((s, c) => s + (Number(c.value ?? c.average) || 0), 0),
+      stat: stats.every(x => x === stats[0]) ? stats[0] : stats.map((x, i) => keys[i] + " " + x).join(", ")
+    };
   }
 
   /*

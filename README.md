@@ -131,3 +131,11 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - Its offline files are fetched fresh when it installs.
 - Offline use is unchanged: without a network the last saved version opens.
 - Browsers still on v3.3 need one hard reload (Ctrl+Shift+R), or a wait of about 10 minutes, to get v3.4. After that, updates come through by themselves.
+
+## V3.5 update — Combined WP type P + E
+- New **WP Type** choice **P + E (main teams)**. The capacity check plans with both teams together.
+  - Capacity is the sum of their weekly capacities.
+  - Booked load is both teams' load per ETD, and backlog is carried forward as one.
+  - Use it when an order can be split between team P and team E. An order too big for one team often fits both.
+- In `lt-core.js`, `wpType` accepts types joined with "+" (e.g. `"P+E"`), so other combinations can be added later.
+- The combined capacity adds each team's typical (median) week. When one team uses the average (it builds in fewer than half of the weeks), the stat is shown per team, e.g. "P median, E average".

@@ -68,7 +68,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="actions"><button class="secondary" id="importInputBtn">Load BOM Analyzer result / JSON</button><input id="importInput" type="file" accept=".json,.xlsx" style="display:none"></div>
 <div id="sourceBox" class="notice source" style="display:none;margin:0 0 14px"><div id="sourceText"></div><button class="secondary small" id="clearSource">Dismiss</button></div>
 <div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branch" type="number" min="0" step="1" placeholder="e.g. 25"></div></div>
-<div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P (e.g. 02P09)</option><option value="E">E (e.g. 03E10)</option><option value="-">- (e.g. 01-10)</option><option value="/">/ (e.g. 02/08)</option></select></div></div>
+<div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P (e.g. 02P09)</option><option value="E">E (e.g. 03E10)</option><option value="-">- (e.g. 01-10)</option><option value="/">/ (e.g. 02/08)</option><option value="P+E">P + E (main teams)</option></select></div></div>
 <div class="field"><label>Customer</label><select id="customer"></select></div>
 <div class="info-grid">
 <div class="mini"><small>Customer Level</small><b id="difficulty">—</b></div>
@@ -185,10 +185,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.4 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.5 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.4"></script>
+<script src="lt-core.js?v=3.5"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -317,6 +317,7 @@ function saveCapacityUrl(){
 function bookedCell(c){return fmtNum(c.booked)+(c.carriedIn>0?`<div class="muted" style="font-size:11px">incl. ${fmtNum(c.carriedIn)} carried in</div>`:"")}
 function carryNote(p){return p.candidates.some(c=>c.carriedIn>0)?'<p class="muted" style="margin:6px 0 0">Booked includes backlog (overdue ETDs) and overload that earlier weeks could not finish, carried forward week by week.</p>':""}
 function fmtNum(n){return Math.round(Number(n)||0).toLocaleString("en-US")}
+function wpLabel(wp){return !wp?"all WP types":wp.includes("+")?`WP types ${wp.split("+").join(" + ")} combined`:`WP type ${wp}`}
 function checkCapacity(r){
  const run=capacityRun, box=$("capacityBox"), wp=$("wpType").value, need=r.cct*r.qty;
  if(!capacityUrl()){box.innerHTML=r.rocket?`<div class="cap"><h3>🚀 Rocket</h3><div>Must be delivered by <b>${formatDate(new Date(r.rocket.deadline+"T00:00:00"))}</b>.</div><p class="muted">Earlier is better when capacity allows (not before ${formatDate(new Date(r.rocket.floor+"T00:00:00"))} = drawing breakdown + 1 production week). Add the Tracker link in Master Data → Production Capacity to find the earliest free ETD.</p></div>`:'<p class="muted" style="margin-top:10px">Capacity check off — add the Tracker link in Master Data → Production Capacity.</p>';return}
@@ -325,7 +326,7 @@ function checkCapacity(r){
   if(run!==capacityRun)return;
   if(r.rocket)return rocketCapacity(r,feed,need,wp);
   const p=LTCore.planCapacity(feed,{load:need,wpType:wp,earliest:r.etd});
-  const typeLabel=wp?`WP type ${wp}`:"all WP types";
+  const typeLabel=wpLabel(wp);
   let head,note="";
   if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)}.</div>`;note="No capacity data for this WP type";}
   else if(p.status==="too-big"){head=`<div class="no">This order (${fmtNum(need)} CCT) is bigger than one week's capacity (${fmtNum(p.capacity)} CCT/week for ${esc(typeLabel)}). It needs about ${p.weeksNeeded} weeks — split it over several ETDs or plan it separately.</div>`;note=`Too big: ~${p.weeksNeeded} weeks`;}
@@ -346,7 +347,7 @@ function checkCapacity(r){
 // Rocket: the formula ETD is the must-achieve date; suggest the earliest ETD with free capacity before it.
 function rocketCapacity(r,feed,need,wp){
  const box=$("capacityBox"),p=LTCore.planRocket(feed,{load:need,wpType:wp,floor:r.rocket.floor,deadline:r.rocket.deadline});
- const typeLabel=wp?`WP type ${wp}`:"all WP types",fd=d=>formatDate(new Date(d+"T00:00:00"));
+ const typeLabel=wpLabel(wp),fd=d=>formatDate(new Date(d+"T00:00:00"));
  let head,note,capEtd="";
  if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)} — keep the Rocket ETD ${fd(p.deadline)} and check the load by hand.</div>`;note="Rocket: no capacity data";}
  else if(p.status==="short"){head=`<div>Rocket ETD (must achieve)</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ Capacity short by ${fmtNum(p.shortBy)} CCT in that week. ${p.need>p.capacity?`The order alone (${fmtNum(p.need)} CCT) is more than one week's capacity (${fmtNum(p.capacity)}): split it over the weeks before the Rocket ETD.`:"Move other items to make room: Rocket is a must-achieve service."}</div>`;note=`Rocket: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
