@@ -42,6 +42,7 @@ label{font-weight:700;font-size:13px;display:block;margin-bottom:7px}.field{marg
 .back-to-top:hover{background:#f3f7fc}
 .source{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe;font-weight:400;display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
 button.small{padding:6px 10px;font-size:12px;flex:0 0 auto}
+a.exchange-btn{display:inline-block;background:#b91c1c;color:#fff;text-decoration:none;font-weight:800;border-radius:9px;padding:9px 14px}a.exchange-btn:hover{background:#991b1b}
 .cap{margin-top:12px;border:1px solid var(--line);border-radius:11px;padding:12px}.cap h3{margin:0 0 8px;font-size:14px}.cap .etd2{font-size:20px;font-weight:800}.cap table{margin-top:8px}.cap td,.cap th{padding:6px 8px}.cap .pick{background:var(--greenbg)}.cap .no{color:var(--red);font-weight:700}.cap .yes{color:var(--green);font-weight:700}
 .auto-badge{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;vertical-align:middle}
 .auto-badge.edited{background:var(--amberbg);color:var(--amber)}
@@ -141,6 +142,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="field"><label>Tracker link</label><input id="capacityUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
 <div class="actions"><button class="secondary" id="saveCapacityUrl">Save &amp; Test</button><button class="secondary" id="clearCapacityUrl">Remove Link</button></div>
 <div id="capacityStatus"></div>
+<div class="field" style="margin-top:14px"><label>Tracker page link <span class="muted">(for Rocket ASSY exchange)</span></label><input id="trackerPageUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+<p class="muted">The Tracker you open in the browser (sign-in needed). When a Rocket order is short of capacity, <b>FIND ASSYs TO EXCHANGE</b> opens it with the ASSYs that could move to a later ETD. Only the Rocket ETD, the CCT short and the WP type are sent in the link. Leave empty if the link above is already the Tracker itself.</p>
+<div class="actions"><button class="secondary" id="saveTrackerPageUrl">Save</button></div>
+<div id="trackerPageStatus"></div>
 </div>
 <div class="card" style="margin-top:14px">
 <h2>Master Data Backup</h2>
@@ -185,10 +190,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.5 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.6 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.5"></script>
+<script src="lt-core.js?v=3.6"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -214,6 +219,8 @@ function init(){
  $("calcBtn").onclick=calculate;
  $("capacityUrl").value=capacityUrl();
  $("saveCapacityUrl").onclick=saveCapacityUrl;
+ try{$("trackerPageUrl").value=localStorage.getItem(TRACKERKEY)||""}catch(e){}
+ $("saveTrackerPageUrl").onclick=saveTrackerPageUrl;
  $("clearCapacityUrl").onclick=()=>{localStorage.removeItem(CAPKEY);capacityCache=null;$("capacityUrl").value="";$("capacityStatus").innerHTML="";};
  $("importInputBtn").onclick=()=>$("importInput").click();
  $("importInput").onchange=importInputFile;
@@ -288,6 +295,19 @@ function calculate(){
 const CAPKEY="manufacturing_lt_v2_capacity_url", CAPACITY_CACHE_MS=10*60*1000;
 let capacityCache=null, capacityRun=0;
 function capacityUrl(){try{return localStorage.getItem(CAPKEY)||""}catch(e){return ""}}
+const TRACKERKEY="manufacturing_lt_v2_tracker_page_url";
+// The Tracker page for exchange suggestions: its own link, else the capacity link (when that is the Tracker itself).
+function trackerPageUrl(){try{return localStorage.getItem(TRACKERKEY)||capacityUrl()}catch(e){return ""}}
+function saveTrackerPageUrl(){
+ const v=$("trackerPageUrl").value.trim();
+ if(v&&!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v.split("?")[0]))return notice("trackerPageStatus","Paste the Tracker web app link (https://script.google.com/…/exec).","bad");
+ try{v?localStorage.setItem(TRACKERKEY,v.split("?")[0]):localStorage.removeItem(TRACKERKEY)}catch(e){}
+ notice("trackerPageStatus",v?"✓ Saved.":"Removed — the capacity link above is used.","good");
+}
+function exchangeLink(p,wp){
+ const base=trackerPageUrl();if(!base)return "";
+ return base+(base.includes("?")?"&":"?")+new URLSearchParams({view:"exchange",deadline:p.deadline,short:String(Math.ceil(p.shortBy)),wp:wp||"",need:String(p.need)}).toString();
+}
 function feedUrl(base,extra){return base+(base.includes("?")?"&":"?")+"api=capacity"+(extra||"")}
 // JSON first; JSONP as a fallback when the browser may not read the JSON directly.
 function fetchCapacity(force){
@@ -350,7 +370,9 @@ function rocketCapacity(r,feed,need,wp){
  const typeLabel=wpLabel(wp),fd=d=>formatDate(new Date(d+"T00:00:00"));
  let head,note,capEtd="";
  if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)} — keep the Rocket ETD ${fd(p.deadline)} and check the load by hand.</div>`;note="Rocket: no capacity data";}
- else if(p.status==="short"){head=`<div>Rocket ETD (must achieve)</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ Capacity short by ${fmtNum(p.shortBy)} CCT in that week. ${p.need>p.capacity?`The order alone (${fmtNum(p.need)} CCT) is more than one week's capacity (${fmtNum(p.capacity)}): split it over the weeks before the Rocket ETD.`:"Move other items to make room: Rocket is a must-achieve service."}</div>`;note=`Rocket: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
+ else if(p.status==="short"){head=`<div>Rocket ETD (must achieve)</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ Capacity short by ${fmtNum(p.shortBy)} CCT in that week. ${p.need>p.capacity?`The order alone (${fmtNum(p.need)} CCT) is more than one week's capacity (${fmtNum(p.capacity)}): split it over the weeks before the Rocket ETD.`:"Move other items to make room: Rocket is a must-achieve service."}</div>`+
+  (exchangeLink(p,wp)?`<p style="margin:10px 0 4px"><a class="exchange-btn" href="${esc(exchangeLink(p,wp))}" target="_blank" rel="noopener">🔁 FIND ASSYs TO EXCHANGE</a> <span class="muted">opens the Tracker with the ASSYs that could take a later ETD</span></p>`
+   :`<p class="muted" style="margin:8px 0 4px">To see which ASSYs could move later, add the Tracker page link in Master Data → Production Capacity.</p>`);note=`Rocket: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
  else{head=`<div>Rocket ETD — earliest with free capacity</div><div class="etd2">${fd(p.suggested.etd)}</div><div class="muted">${p.daysEarlier>0?`${p.daysEarlier} days before the standard Rocket ETD (${fd(p.deadline)}).`:`On the standard Rocket ETD; earlier weeks are full.`}</div>`;note=p.daysEarlier>0?`Rocket: ${p.daysEarlier} days early`:"Rocket: on standard ETD";capEtd=p.suggested.etd;}
  const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?" <span class=\"muted\">(Rocket ETD)</span>":""}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
  box.innerHTML=`<div class="cap"><h3>🚀 Rocket · production capacity · ${esc(typeLabel)}</h3>${head}

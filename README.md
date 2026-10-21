@@ -139,3 +139,14 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - Use it when an order can be split between team P and team E. An order too big for one team often fits both.
 - In `lt-core.js`, `wpType` accepts types joined with "+" (e.g. `"P+E"`), so other combinations can be added later.
 - The combined capacity adds each team's typical (median) week. When one team uses the average (it builds in fewer than half of the weeks), the stat is shown per team, e.g. "P median, E average".
+
+## V3.6 update — Rocket: find ASSYs to exchange
+- When a Rocket order is short of capacity, the Rocket box shows **🔁 FIND ASSYs TO EXCHANGE**. It opens the Tracker's CAPACITY page (sign-in needed) with a **ROCKET EXCHANGE** card.
+- The card lists unfinished, non-Rocket ASSYs that meet all of these, most spare days first:
+  - their ETD is on or before the Rocket ETD;
+  - they are the same WP type(s);
+  - their customer due date is at least 7 days after the Rocket ETD, so they can take a later ETD and still be on time.
+
+  It marks the set that frees enough CCT, or says when even all of them are not enough.
+- **Master Data → Production Capacity → Tracker page link**: the Tracker you open in the browser. It can be left empty when the capacity link is the Tracker itself.
+- Only the Rocket ETD, the CCT short, the WP type and the order's CCT are put in the link. ASSY numbers and customers stay in the Tracker; the public capacity feed still has totals only.
