@@ -131,3 +131,23 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - Its offline files are fetched fresh when it installs.
 - Offline use is unchanged: without a network the last saved version opens.
 - Browsers still on v3.3 need one hard reload (Ctrl+Shift+R), or a wait of about 10 minutes, to get v3.4. After that, updates come through by themselves.
+
+## V3.5 update — Combined WP type P + E
+- New **WP Type** choice **P + E (main teams)**. The capacity check plans with both teams together.
+  - Capacity is the sum of their weekly capacities.
+  - Booked load is both teams' load per ETD, and backlog is carried forward as one.
+  - Use it when an order can be split between team P and team E. An order too big for one team often fits both.
+- In `lt-core.js`, `wpType` accepts types joined with "+" (e.g. `"P+E"`), so other combinations can be added later.
+- The combined capacity adds each team's typical (median) week. When one team uses the average (it builds in fewer than half of the weeks), the stat is shown per team, e.g. "P median, E average".
+
+## V3.6 update — Rocket: find ASSYs to exchange
+- When a Rocket order is short of capacity, the Rocket box shows **🔁 FIND ASSYs TO EXCHANGE**. It opens the Tracker's CAPACITY page (sign-in needed) with a **ROCKET EXCHANGE** card.
+- The card lists unfinished, non-Rocket ASSYs that meet all of these, most spare days first:
+  - their ETD is on or before the Rocket ETD;
+  - they are the same WP type(s);
+  - their customer due date is at least 7 days after the Rocket ETD, so they can take a later ETD and still be on time.
+
+  It marks the set that frees enough CCT, or says when even all of them are not enough.
+- **Master Data → Production Capacity → Tracker page link**: the Tracker you open in the browser. It can be left empty when the capacity link is the Tracker itself.
+- Only the Rocket ETD, the CCT short, the WP type and the order's CCT are put in the link. ASSY numbers and customers stay in the Tracker; the public capacity feed still has totals only.
+- WP type "-" (e.g. 01-10) is no longer a choice. It is made too rarely (a few CCT a week) to plan with; its load still counts in "Any (total capacity)".
