@@ -69,7 +69,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="actions"><button class="secondary" id="importInputBtn">Load BOM Analyzer result / JSON</button><input id="importInput" type="file" accept=".json,.xlsx" style="display:none"></div>
 <div id="sourceBox" class="notice source" style="display:none;margin:0 0 14px"><div id="sourceText"></div><button class="secondary small" id="clearSource">Dismiss</button></div>
 <div class="form-row"><div class="field"><label>CCT Count</label><input id="cct" type="number" min="1" placeholder="e.g. 180"></div><div class="field"><label>Branch Count</label><input id="branch" type="number" min="0" step="1" placeholder="e.g. 25"></div></div>
-<div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P (e.g. 02P09)</option><option value="E">E (e.g. 03E10)</option><option value="/">/ (e.g. 02/08)</option><option value="P+E">P + E (main teams)</option></select></div></div>
+<div class="form-row"><div class="field"><label>Manufacturing Quantity</label><input id="qty" type="number" min="1" step="1" value="1" placeholder="e.g. 20"></div><div class="field"><label>WP Type <span class="muted">(capacity check)</span></label><select id="wpType"><option value="">Any (total capacity)</option><option value="P">P · prototype line (e.g. 02P09)</option><option value="E">E · pre-mass production line (e.g. 03E10)</option><option value="/">/ · regular line (e.g. 02/08)</option><option value="S">S · small volume line (e.g. 03S08)</option><option value="C">C · Caterpillar line (e.g. 10C08)</option><option value="P+E">P + E (main teams)</option></select></div></div>
 <div class="field"><label>Customer</label><select id="customer"></select></div>
 <div class="info-grid">
 <div class="mini"><small>Customer Level</small><b id="difficulty">—</b></div>
@@ -192,10 +192,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.7 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.8 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.7"></script>
+<script src="lt-core.js?v=3.8"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
