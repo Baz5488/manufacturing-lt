@@ -151,3 +151,11 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - **Master Data → Production Capacity → Tracker page link**: the Tracker you open in the browser. It can be left empty when the capacity link is the Tracker itself.
 - Only the Rocket ETD, the CCT short, the WP type and the order's CCT are put in the link. ASSY numbers and customers stay in the Tracker; the public capacity feed still has totals only.
 - WP type "-" (e.g. 01-10) is no longer a choice. It is made too rarely (a few CCT a week) to plan with; its load still counts in "Any (total capacity)".
+
+## V3.7 update — Backward planning from a required ETD
+- New **Plan From** choice: *Start date → ETD* (as before) or **Required ETD → latest start date**. Use it when the ETD is fixed because it must meet the customer due date.
+- The result shows the **latest manufacturing start date** (required ETD − total LT). If that date has passed, it shows in red with the ETD you get when starting today.
+- The capacity check searches the ETD weeks from the earliest possible ETD (today + LT) up to the required ETD and picks the **latest week with room**, so production starts as late as possible. Each week shows its own *Start by* date.
+- If no week has room, it shows the CCT short and **FIND ASSYs TO EXCHANGE**, with the required ETD as the deadline. If even starting today is too late, it says how many days and suggests shortening the LT or agreeing a new ETD.
+- History records the plan mode (`plan: forward | backward`).
+- Core: `LTCore.planBackward(feed, { load, wpType, deadline, lt, today })`; `LTCore.addDays` is exported.
