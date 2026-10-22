@@ -78,7 +78,9 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="mini"><small>Difficulty Buffer</small><b id="customerBuffer">—</b></div>
 </div>
 <div class="field" style="margin-top:15px"><label>Special Treatment</label><div class="checks" id="specials"></div></div>
-<div class="field"><label>Manufacturing Start Date</label><input id="startDate" type="date"></div>
+<div class="field"><label>Plan From</label><select id="planMode"><option value="forward">Start date → ETD</option><option value="backward">Required ETD → latest start date</option></select></div>
+<div class="field" id="startField"><label>Manufacturing Start Date</label><input id="startDate" type="date"></div>
+<div class="field" id="requiredField" style="display:none"><label>Required ETD <span class="muted">(must meet the customer due date)</span></label><input id="requiredEtd" type="date"></div>
 <button class="primary" id="calcBtn">CALCULATE LEAD TIME</button><div id="inputNotice"></div>
 </div>
 
@@ -190,10 +192,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.6 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.7 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.6"></script>
+<script src="lt-core.js?v=3.7"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -213,6 +215,7 @@ function saveHistory(h){localStorage.setItem(HIST,JSON.stringify(h))}
 const $=id=>document.getElementById(id);
 function init(){
  $("startDate").value=localISODate(new Date());
+ $("planMode").onchange=()=>{const b=$("planMode").value==="backward";$("startField").style.display=b?"none":"";$("requiredField").style.display=b?"":"none"};
  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
  $("customer").onchange=customerInfo;
  $("branch").oninput=customerInfo;
@@ -268,7 +271,12 @@ function readInputs(){
 }
 function calculate(){
  $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";capacityRun++;
- const r=LTCore.calcLeadTime(readInputs(),master);
+ const backward=$("planMode").value==="backward",today=localISODate(new Date()),inputs=readInputs();
+ if(backward){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test($("requiredEtd").value))return notice("inputNotice","Enter the required ETD.","bad");
+  inputs.startDate=today; // the LT does not depend on the start date; the start is counted back from the ETD below
+ }
+ const r=LTCore.calcLeadTime(inputs,master);
  if(r.status==="error")return notice("inputNotice",esc(r.errors[0]),"bad");
  const rule=r.cctRule,d=r.difficulty,qf=r.qtyFactor;
  $("baseLT").textContent=rule.baseDays===null?"Discuss":`${rule.baseDays} days (${rule.baseWeeks} weeks)`;
@@ -284,11 +292,24 @@ function calculate(){
  const total=r.totalLT;
  $("preQtyLT").textContent=`${r.preQtyLT} days`;$("qtyFactor").textContent=`${Number(qf.factor).toFixed(2)}× (${qf.label})`;
  $("totalDays").textContent=`${total} DAYS`;$('totalWeeks').textContent=`≈ ${(total/7).toFixed(1)} weeks`;$('sumLT').textContent=`${total} days`;
- $("etd").textContent=formatDate(new Date(r.etd+"T00:00:00"));$("etdLabel").textContent=r.rocket?"🚀 Rocket ETD — must achieve (earlier if capacity allows)":"Estimated ETD";$("dateBox").style.display="block";
+ if(backward){
+  // Count back from the required ETD: latest start = ETD - LT. Rocket's earlier-if-capacity search is replaced by the backward search.
+  const req=$("requiredEtd").value;
+  r.backward={required:req,latestStart:LTCore.addDays(req,-total),today};
+  r.startDate=r.backward.latestStart;r.etd=req;delete r.rocket;
+  const late=r.backward.latestStart<today;
+  $("etdLabel").innerHTML=late?`<span style="color:var(--red)">Latest start was ${formatDate(new Date(r.backward.latestStart+"T00:00:00"))} — already passed</span>`:`Latest manufacturing start date <span class="muted">(to meet ETD ${formatDate(new Date(req+"T00:00:00"))})</span>`;
+  $("etd").textContent=late?`Start today → ETD ${formatDate(new Date(LTCore.addDays(today,total)+"T00:00:00"))}`:formatDate(new Date(r.backward.latestStart+"T00:00:00"));
+  $("dateBox").className="notice "+(late?"bad":"good");
+ }else{
+  $("etd").textContent=formatDate(new Date(r.etd+"T00:00:00"));$("etdLabel").textContent=r.rocket?"🚀 Rocket ETD — must achieve (earlier if capacity allows)":"Estimated ETD";
+  $("dateBox").className="notice good";
+ }
+ $("dateBox").style.display="block";
  notice("resultNotice",`✓ ${esc(r.customer)}: customer L${r.customerLevel}, branch ${r.branch} → L${r.branchLevel}, applied Level ${d.level} (${esc(d.name)}), Qty ${r.qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
  checkCapacity(r);
  const src=sourceSummary();
- const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:r.specials.join(", ")||"None",preQtyLT:r.preQtyLT,lt:total,etd:r.etd,wpType:$("wpType").value,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
+ const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:r.specials.join(", ")||"None",preQtyLT:r.preQtyLT,lt:total,etd:r.etd,plan:backward?"backward":"forward",wpType:$("wpType").value,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
 }
 
 // ---- Production capacity (PROTO CONTROL Tracker feed, schema assy-finder/capacity@1 — id kept for compatibility) ----
@@ -344,6 +365,7 @@ function checkCapacity(r){
  box.innerHTML='<div class="cap muted">Checking production capacity…</div>';
  fetchCapacity(false).then(feed=>{
   if(run!==capacityRun)return;
+  if(r.backward)return backwardCapacity(r,feed,need,wp);
   if(r.rocket)return rocketCapacity(r,feed,need,wp);
   const p=LTCore.planCapacity(feed,{load:need,wpType:wp,earliest:r.etd});
   const typeLabel=wpLabel(wp);
@@ -362,6 +384,26 @@ function checkCapacity(r){
   // Save the result on the history entry of this calculation.
   const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=p.suggested?p.suggested.etd:"";h[0].capNote=note;saveHistory(h);renderHistory()}
  }).catch(e=>{if(run===capacityRun)box.innerHTML=`<div class="notice warn">Capacity check failed: ${esc(e.message)}</div>`});
+}
+
+// Backward plan: the required ETD is fixed; find the latest ETD week up to it with room, and its start date.
+function backwardCapacity(r,feed,need,wp){
+ const box=$("capacityBox"),b=r.backward,fd=d=>formatDate(new Date(d+"T00:00:00"));
+ const p=LTCore.planBackward(feed,{load:need,wpType:wp,deadline:b.required,lt:r.totalLT,today:b.today});
+ const typeLabel=wpLabel(wp);let head,note,capEtd="";
+ const exch=()=>exchangeLink({deadline:p.deadline,shortBy:p.shortBy,need:p.need},wp);
+ if(p.status==="too-late"){head=`<div class="no">Even starting today the ETD is ${fd(p.earliestEtd)} — ${p.lateBy} day(s) after the required ETD. Shorten the LT (Rocket, overtime, split the lot) or agree a new ETD with the customer.</div>`;note=`Backward: ${p.lateBy}d too late`;}
+ else if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)} — start by ${fd(p.latestStart)} and check the load by hand.</div>`;note="Backward: no capacity data";}
+ else if(p.status==="short"){head=`<div>Required ETD</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ No week up to the required ETD has ${fmtNum(p.need)} CCT free — short by ${fmtNum(p.shortBy)} CCT in the ETD week. ${p.need>p.capacity?`The order alone is more than one week's capacity (${fmtNum(p.capacity)}): split it over several ETDs.`:"Make room by moving other ASSYs to a later ETD."}</div>`+
+  (exch()?`<p style="margin:10px 0 4px"><a class="exchange-btn" href="${esc(exch())}" target="_blank" rel="noopener">🔁 FIND ASSYs TO EXCHANGE</a> <span class="muted">opens the Tracker with the ASSYs that could take a later ETD</span></p>`:`<p class="muted" style="margin:8px 0 4px">To see which ASSYs could move later, add the Tracker page link in Master Data → Production Capacity.</p>`);
+  note=`Backward: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
+ else{const s=p.suggested;head=`<div>${p.status==="ok"?"Capacity OK in the required ETD week":"Required ETD week is full — produce for an earlier ETD"}</div><div class="etd2">Start by ${fd(s.start)}</div><div class="muted">ETD ${fd(s.etd)}${p.daysEarlier>0?` — ${p.daysEarlier} day(s) before the required ETD, so start ${p.daysEarlier} day(s) earlier than the formula start (${fd(p.latestStart)})`:""}.</div>`;
+  note=p.status==="ok"?"Backward: OK":`Backward: start ${p.daysEarlier}d earlier`;capEtd=s.etd;}
+ const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?' <span class="muted">(required)</span>':""}</td><td>${fd(c.start)}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
+ box.innerHTML=`<div class="cap"><h3>⏪ Backward plan · production capacity · ${esc(typeLabel)}</h3>${head}
+  <p class="muted">Searched the ETD weeks from the earliest possible (${fd(p.earliestEtd)} = today + ${r.totalLT} days LT) to the required ETD; the latest week with room is picked, so production starts as late as possible. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
+  ${rows?`<table><thead><tr><th>ETD</th><th>Start by</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
+ const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
 }
 
 // Rocket: the formula ETD is the must-achieve date; suggest the earliest ETD with free capacity before it.

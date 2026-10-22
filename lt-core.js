@@ -313,6 +313,51 @@
     });
   }
 
+  /*
+   * Backward planning: the ETD is fixed (it must meet the customer due date), so count back to the start.
+   * order = { load, wpType, deadline: required ETD, lt: total manufacturing LT (days), today: "YYYY-MM-DD" }.
+   * Weekly ETD slots from the earliest possible ETD (today + LT) to the required ETD; the suggestion is the LATEST
+   * slot with room, so production starts as late as possible. Each slot carries its own start date (ETD - LT).
+   * status: "ok" (the required ETD week has room), "earlier" (only an earlier week has room),
+   *         "short" (no week has room: shortBy = CCT missing in the required ETD week),
+   *         "too-late" (even starting today the ETD is after the required ETD: lateBy days), "no-capacity".
+   */
+  function planBackward(feed, order) {
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    if (!iso.test(order.deadline || "") || !iso.test(order.today || "") || !(order.lt >= 0)) return { status: "error", error: "No required ETD." };
+    const type = order.wpType || "";
+    const { capKey, capacity, stat } = capacityOf(feed, type);
+    const need = Math.max(0, Number(order.load) || 0);
+    const latestStart = addDays(order.deadline, -order.lt);
+    const earliestEtd = addDays(order.today, order.lt);
+    const base = { type: capKey, capacity, stat, need, deadline: order.deadline, lt: order.lt, latestStart, earliestEtd };
+    if (earliestEtd > order.deadline) {
+      return Object.assign(base, { status: "too-late", lateBy: Math.round((isoToUTC(earliestEtd) - isoToUTC(order.deadline)) / 86400000), candidates: [], suggested: null });
+    }
+    if (capacity <= 0) return Object.assign(base, { status: "no-capacity", candidates: [], suggested: null });
+
+    const { bookedByWeek, etdWeekday } = bookedLoad(feed, type);
+    const queue = weekQueue(feed, bookedByWeek, capacity);
+    const deadline = isoToUTC(order.deadline), first = isoToUTC(earliestEtd);
+    const candidates = [];
+    for (let wk = weekStartUTC(first); wk <= weekStartUTC(deadline); wk += WEEK_MS) {
+      const day = Math.min(Math.max(wk + ((etdWeekday + 6) % 7) * 86400000, first), deadline);
+      const { booked, carriedIn } = queue(wk);
+      const free = capacity - booked;
+      const etd = utcToIso(day);
+      candidates.push({ etd, start: addDays(etd, -order.lt), booked, carriedIn, free, fits: free >= need });
+    }
+    const fitting = candidates.filter(c => c.fits);
+    const suggested = fitting.length ? fitting[fitting.length - 1] : null;
+    const last = candidates[candidates.length - 1];
+    return Object.assign(base, {
+      status: !suggested ? "short" : suggested === last ? "ok" : "earlier",
+      shortBy: suggested ? 0 : Math.max(0, need - last.free),
+      daysEarlier: suggested ? Math.round((deadline - isoToUTC(suggested.etd)) / 86400000) : 0,
+      suggested, candidates
+    });
+  }
+
   function planCapacity(feed, order, options) {
     const opt = Object.assign({ weeks: 26, show: 6 }, options || {});
     const type = order.wpType || "";
@@ -481,5 +526,5 @@
     return { title_block: tb, bom, notes };
   }
 
-  return { INPUT_SCHEMA, DEFAULT_MASTER, ANALYZER_HINTS, fromAnalyzerResult, analyzerWorkbookToResult, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity, planRocket };
+  return { INPUT_SCHEMA, DEFAULT_MASTER, ANALYZER_HINTS, fromAnalyzerResult, analyzerWorkbookToResult, clone, normalizeMaster, findCustomer, findBranchLevel, findDifficulty, parseInput, calcLeadTime, planCapacity, planRocket, planBackward, addDays };
 });
