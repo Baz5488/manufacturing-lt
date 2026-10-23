@@ -203,7 +203,7 @@
    *   etds: [ { etd: "2026-10-23", overdue: false, byType: { P: 1900, E: 700 } } ],  // CCT x QTY already booked
    *   today: "2026-10-19"   // unfinished items with a past ETD (overdue) are booked in this week
    * }
-   * order: { load: CCT x QTY, wpType: "P" | "E" | "-" | "/" | "P+E" (types combined) | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
+   * order: { load: CCT x QTY, wpType: "P" | "E" | "/" | "S" | "C" | "-" | "P+E" (types combined; P prototype, E pre-mass production, / regular, S small volume, C Caterpillar line) | "" (= all, TOTAL capacity), earliest: "YYYY-MM-DD" }
    * Finds the first weekly ETD on or after `earliest` whose free capacity (capacity - booked) fits the load.
    * ETDs in the same week (Mon-Sun) share one week's capacity. Load a week cannot finish (overdue backlog, overfull
    * weeks) is carried into the following weeks. Weeks beyond the feed have only carried load.

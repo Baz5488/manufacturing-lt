@@ -159,3 +159,13 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - If no week has room, it shows the CCT short and **FIND ASSYs TO EXCHANGE**, with the required ETD as the deadline. If even starting today is too late, it says how many days and suggests shortening the LT or agreeing a new ETD.
 - History records the plan mode (`plan: forward | backward`).
 - Core: `LTCore.planBackward(feed, { load, wpType, deadline, lt, today })`; `LTCore.addDays` is exported.
+
+## V3.8 update — WP lines S and C
+- WP Type now lists every line by name:
+  - **P** prototype line
+  - **E** pre-mass production line
+  - **/** regular line
+  - **S** small volume line (new, e.g. 03S08)
+  - **C** Caterpillar line (new, e.g. 10C08)
+  - **P + E**
+- The Tracker / capacity feed must send S and C capacity: update the Tracker `Code.gs` (or `CapacityFeed.gs`).
