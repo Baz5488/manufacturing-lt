@@ -81,6 +81,8 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="field"><label>Plan From</label><select id="planMode"><option value="forward">Start date → ETD</option><option value="backward">Required ETD → latest start date</option></select></div>
 <div class="field" id="startField"><label>Manufacturing Start Date</label><input id="startDate" type="date"></div>
 <div class="field" id="requiredField" style="display:none"><label>Required ETD <span class="muted">(must meet the customer due date)</span></label><input id="requiredEtd" type="date"></div>
+<div class="field"><label>Record in Tracker <span class="muted">(optional)</span></label><div class="checks"><label class="check"><input type="checkbox" id="bookProduction"><span><b>Production</b> — book the CCT on its ETD week</span></label><label class="check"><input type="checkbox" id="bookQuotation"><span><b>Quotation</b> — record only</span></label></div></div>
+<div class="field" id="bookRefField" style="display:none"><label>ASSY No. <span class="muted" id="bookRefHint"></span></label><input id="bookRef" autocomplete="off" placeholder="e.g. YA00102345-004"></div>
 <button class="primary" id="calcBtn">CALCULATE LEAD TIME</button><div id="inputNotice"></div>
 </div>
 
@@ -99,6 +101,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 </table>
 <div id="dateBox" class="notice good" style="display:none;text-align:center"><div id="etdLabel">Estimated ETD</div><strong id="etd" style="font-size:22px"></strong></div>
 <div id="capacityBox"></div>
+<div id="bookingNotice"></div>
 <div id="resultNotice"></div>
 </div>
 </div>
@@ -148,6 +151,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p class="muted">The Tracker you open in the browser (sign-in needed). When a Rocket order is short of capacity, <b>FIND ASSYs TO EXCHANGE</b> opens it with the ASSYs that could move to a later ETD. Only the Rocket ETD, the CCT short and the WP type are sent in the link. Leave empty if the link above is already the Tracker itself.</p>
 <div class="actions"><button class="secondary" id="saveTrackerPageUrl">Save</button></div>
 <div id="trackerPageStatus"></div>
+<div class="field" style="margin-top:14px"><label>Booking key <span class="muted">(owner only — needed for Production / Quotation)</span></label><input id="bookingKey" type="password" autocomplete="off" placeholder="Paste your Tracker owner link or its key"></div>
+<p class="muted">In the Tracker's Apps Script editor run <b>createOwnerLink</b> and paste the owner link it logs (or only the 32-character key). Saved in this browser only and sent only to the Tracker link above. Without it the Planner still calculates, but cannot book.</p>
+<div class="actions"><button class="secondary" id="saveBookingKey">Save</button><button class="secondary" id="clearBookingKey">Remove</button></div>
+<div id="bookingKeyStatus"></div>
 </div>
 <div class="card" style="margin-top:14px">
 <h2>Master Data Backup</h2>
@@ -192,10 +199,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.8 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.9 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.8"></script>
+<script src="lt-core.js?v=3.9"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -224,6 +231,10 @@ function init(){
  $("saveCapacityUrl").onclick=saveCapacityUrl;
  try{$("trackerPageUrl").value=localStorage.getItem(TRACKERKEY)||""}catch(e){}
  $("saveTrackerPageUrl").onclick=saveTrackerPageUrl;
+ $("bookingKey").value=bookingKey()?"••••••••":"";
+ $("saveBookingKey").onclick=saveBookingKey;
+ $("clearBookingKey").onclick=()=>{try{localStorage.removeItem(BOOKKEY)}catch(e){}$("bookingKey").value="";capacityCache=null;notice("bookingKeyStatus","Removed — the Planner can no longer book.","warn")};
+ for(const [id,other] of [["bookProduction","bookQuotation"],["bookQuotation","bookProduction"]])$(id).onchange=()=>{if($(id).checked)$(other).checked=false;bookingFields()};
  $("clearCapacityUrl").onclick=()=>{localStorage.removeItem(CAPKEY);capacityCache=null;$("capacityUrl").value="";$("capacityStatus").innerHTML="";};
  $("importInputBtn").onclick=()=>$("importInput").click();
  $("importInput").onchange=importInputFile;
@@ -270,14 +281,17 @@ function readInputs(){
   specials:[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)][0])};
 }
 function calculate(){
- $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";capacityRun++;
+ $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("bookingNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";capacityRun++;
  const backward=$("planMode").value==="backward",today=localISODate(new Date()),inputs=readInputs();
+ const booking=bookingIntent();
+ if(booking&&booking.error)return notice("inputNotice",booking.error,"bad");
  if(backward){
   if(!/^\d{4}-\d{2}-\d{2}$/.test($("requiredEtd").value))return notice("inputNotice","Enter the required ETD.","bad");
   inputs.startDate=today; // the LT does not depend on the start date; the start is counted back from the ETD below
  }
  const r=LTCore.calcLeadTime(inputs,master);
  if(r.status==="error")return notice("inputNotice",esc(r.errors[0]),"bad");
+ r.booking=booking;
  const rule=r.cctRule,d=r.difficulty,qf=r.qtyFactor;
  $("baseLT").textContent=rule.baseDays===null?"Discuss":`${rule.baseDays} days (${rule.baseWeeks} weeks)`;
  $("drawingLT").textContent=`${rule.drawingDays} days`;
@@ -287,6 +301,7 @@ function calculate(){
  $("reductionLT").textContent=r.shortenDays&&r.shortenScale!==null?`−${r.reductionDays} days (${-r.shortenDays} × ${(Math.round(r.shortenScale*100)/100).toFixed(2)})`:"—";
  if(r.status==="review"){
   $("totalDays").textContent="REVIEW";$('totalWeeks').textContent="Advance discussion required";$("preQtyLT").textContent="—";$("qtyFactor").textContent=qf?`${qf.factor.toFixed(2)}×`:"Discuss";$("sumLT").textContent="—";
+  if(booking)notice("bookingNotice","Not recorded in the Tracker — there is no ETD to book for this combination.","warn");
   return notice("resultNotice","⚠️ Normal ETD cannot be calculated for this combination.","warn");
  }
  const total=r.totalLT;
@@ -336,8 +351,10 @@ function fetchCapacity(force){
  if(!base)return Promise.reject(new Error("No Tracker link saved (Master Data → Production Capacity)."));
  if(!force&&capacityCache&&capacityCache.url===base&&Date.now()-capacityCache.at<CAPACITY_CACHE_MS)return Promise.resolve(capacityCache.data);
  const keep=data=>{if(!data||data.error||!data.capacity)throw new Error(data&&data.error?data.error:"The link did not return capacity data.");capacityCache={url:base,at:Date.now(),data};return data};
- return fetch(feedUrl(base),{redirect:"follow"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(keep)
-  .catch(()=>jsonp(feedUrl(base,"&callback=")).then(keep));
+ // With the booking key the feed also lists this Planner's own bookings (so re-planning an ASSY leaves its booking out).
+ const key=bookingKey()?"&key="+encodeURIComponent(bookingKey()):"";
+ return fetch(feedUrl(base,key),{redirect:"follow"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(keep)
+  .catch(()=>jsonp(feedUrl(base,key+"&callback=")).then(keep));
 }
 function jsonp(url){return new Promise((resolve,reject)=>{
  const cb="ltCapacity_"+Date.now(),s=document.createElement("script");let done=false;
@@ -365,6 +382,7 @@ function checkCapacity(r){
  box.innerHTML='<div class="cap muted">Checking production capacity…</div>';
  fetchCapacity(false).then(feed=>{
   if(run!==capacityRun)return;
+  feed=withoutOwnBooking(feed,r.booking);
   if(r.backward)return backwardCapacity(r,feed,need,wp);
   if(r.rocket)return rocketCapacity(r,feed,need,wp);
   const p=LTCore.planCapacity(feed,{load:need,wpType:wp,earliest:r.etd});
@@ -383,7 +401,8 @@ function checkCapacity(r){
    ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
   // Save the result on the history entry of this calculation.
   const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=p.suggested?p.suggested.etd:"";h[0].capNote=note;saveHistory(h);renderHistory()}
- }).catch(e=>{if(run===capacityRun)box.innerHTML=`<div class="notice warn">Capacity check failed: ${esc(e.message)}</div>`});
+  recordBooking(r,p.suggested?p.suggested.etd:"",note);
+ }).catch(e=>{if(run!==capacityRun)return;box.innerHTML=`<div class="notice warn">Capacity check failed: ${esc(e.message)}</div>`;if(r.booking)notice("bookingNotice","Not recorded in the Tracker — the capacity check failed, so nothing was booked. Try again.","bad")});
 }
 
 // Backward plan: the required ETD is fixed; find the latest ETD week up to it with room, and its start date.
@@ -404,6 +423,7 @@ function backwardCapacity(r,feed,need,wp){
   <p class="muted">Searched the ETD weeks from the earliest possible (${fd(p.earliestEtd)} = today + ${r.totalLT} days LT) to the required ETD; the latest week with room is picked, so production starts as late as possible. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
   ${rows?`<table><thead><tr><th>ETD</th><th>Start by</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
+ recordBooking(r,capEtd,note);
 }
 
 // Rocket: the formula ETD is the must-achieve date; suggest the earliest ETD with free capacity before it.
@@ -421,6 +441,63 @@ function rocketCapacity(r,feed,need,wp){
   <p class="muted">Searched from ${fd(p.floor)} (start + drawing breakdown ${r.cctRule.drawingDays} days + 1 production week) to the Rocket ETD. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
   ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
+ recordBooking(r,capEtd,note);
+}
+
+// ---- Tracker bookings: Production holds the CCT on its ETD week in the Tracker capacity; Quotation is a record only ----
+const BOOKKEY="manufacturing_lt_v2_booking_key";
+function bookingKey(){try{return localStorage.getItem(BOOKKEY)||""}catch(e){return ""}}
+function saveBookingKey(){
+ const v=$("bookingKey").value.trim(),m=v.match(/(?:^|[?&]key=)([0-9a-f]{32})(?:$|&)/i);
+ if(!m)return notice("bookingKeyStatus",v==="••••••••"?"Key already saved.":"Paste the owner link from createOwnerLink (…/exec?key=…) or its 32-character key.","bad");
+ try{localStorage.setItem(BOOKKEY,m[1].toLowerCase())}catch(e){return notice("bookingKeyStatus","This browser blocks saving.","bad")}
+ $("bookingKey").value="••••••••";capacityCache=null;notice("bookingKeyStatus","✓ Saved. Production / Quotation can now be recorded in the Tracker.","good");
+}
+function bookingRef(v){return String(v||"").replace(/ /g," ").replace(/​/g,"").trim().toUpperCase()}
+function bookingFields(){
+ const prod=$("bookProduction").checked,quote=$("bookQuotation").checked;
+ $("bookRefField").style.display=prod||quote?"":"none";
+ $("bookRefHint").textContent=prod?"(the booking is released when this ASSY appears in PRIORITES BARU)":"(or a quotation reference)";
+}
+function bookingIntent(){
+ const type=$("bookProduction").checked?"PRODUCTION":$("bookQuotation").checked?"QUOTATION":"";
+ if(!type)return null;
+ const ref=bookingRef($("bookRef").value);
+ if(!ref)return {error:type==="PRODUCTION"?"Enter the ASSY No. to book Production — the booking is released when it appears in PRIORITES BARU.":"Enter the ASSY No. or a quotation reference."};
+ if(!capacityUrl())return {error:"Add the Tracker link in Master Data → Production Capacity to record in the Tracker."};
+ if(!bookingKey())return {error:"Add your booking key in Master Data → Production Capacity to record in the Tracker."};
+ return {type,ref};
+}
+// Re-planning an ASSY that already has a Production booking: its own booked load is left out, so it does not compete with itself.
+function withoutOwnBooking(feed,booking){
+ if(!booking||booking.type!=="PRODUCTION"||!Array.isArray(feed.bookings))return feed;
+ const own=feed.bookings.filter(b=>b.ref===booking.ref);
+ if(!own.length)return feed;
+ const etds=(feed.etds||[]).map(e=>{const mine=own.filter(b=>b.etd===e.etd);if(!mine.length)return e;
+  const byType=Object.assign({},e.byType);mine.forEach(b=>Object.keys(b.byType||{}).forEach(t=>{byType[t]=Math.max(0,(byType[t]||0)-b.byType[t])}));return Object.assign({},e,{byType})});
+ return Object.assign({},feed,{etds,ownBooking:own});
+}
+function recordBooking(r,capEtd,note){
+ const b=r.booking;if(!b)return;
+ const etd=capEtd||r.etd,src=sourceSummary(),wp=$("wpType").value,fd=d=>formatDate(new Date(d+"T00:00:00"));
+ const plan=(r.backward?"backward":r.rocket?"rocket":"forward")+(note?" · "+note:"");
+ notice("bookingNotice",b.type==="PRODUCTION"?"Booking capacity in the Tracker…":"Recording the quotation in the Tracker…","warn");
+ const run=capacityRun;
+ fetch(capacityUrl().split("?")[0],{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},
+  body:JSON.stringify({api:"book",key:bookingKey(),booking:{type:b.type,assyNo:b.ref,customer:r.customer,wpType:wp,etd,cct:r.cct,qty:r.qty,plan,drawingNo:src.drawingNo||"",note:note||""}})})
+  .then(res=>{if(!res.ok)throw new Error("HTTP "+res.status);return res.json()})
+  .then(d=>{
+   if(!d||!d.ok)throw new Error(d&&d.error?d.error:"No answer from the Tracker.");
+   capacityCache=null; // the next check includes this booking
+   const k=d.booking,load=fmtNum(k.load);
+   const h=history();if(h[0]&&h[0].cct===r.cct){h[0].booking=(k.type==="PRODUCTION"?"📌 Booked ":"📝 Quotation ")+k.assyNo+" · "+k.id;saveHistory(h);renderHistory()}
+   if(run!==capacityRun)return;
+   notice("bookingNotice",k.type==="PRODUCTION"
+    ?`📌 Production booking ${k.replaced?"updated":"saved"}: <b>${load} CCT</b> on ETD <b>${fd(k.etd)}</b> (${esc(wpLabel(k.wpType))}), ASSY <b>${esc(k.assyNo)}</b>. It holds this capacity in the Tracker until the ASSY appears in PRIORITES BARU.${k.replaced?" It replaces the earlier booking for this ASSY.":""}${k.alreadyInPriorites?"<br>⚠️ This ASSY already has a row in PRIORITES BARU — the booking counts until a <b>new</b> row for it appears. If that row is this order, cancel the booking in the Tracker.":""}`
+    :`📝 Quotation recorded: ${load} CCT on ETD ${fd(k.etd)} (${esc(wpLabel(k.wpType))}), ref <b>${esc(k.assyNo)}</b>. No capacity is held. When the order comes, confirm it in the Tracker (CAPACITY → PLANNER BOOKINGS) or run the Planner again with Production ticked.`,
+    k.type==="PRODUCTION"&&k.alreadyInPriorites?"warn":"good");
+  })
+  .catch(e=>{if(run===capacityRun)notice("bookingNotice","✕ Not recorded in the Tracker: "+esc(e.message),"bad")});
 }
 
 // ---- Prefill from an upstream tool (URL parameters or input JSON) ----
@@ -518,7 +595,7 @@ function sourceSummary(){
 }
 function renderHistory(){
  const h=history();if(!h.length){$("historyTable").innerHTML='<div class="empty">No calculations saved yet.</div>';return}
- $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Drawing</th><th>Start</th><th>CCT</th><th>Branch</th><th>Qty</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th><th>Capacity ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${esc(x.drawingNo||"—")}<div class="muted">${esc(x.inputSource||"Manual")}</div></td><td>${x.start}</td><td>${x.cct}</td><td>${x.branch??"—"}${x.branchLevel?` (L${x.branchLevel})`:""}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td><td>${x.capEtd?`<b>${x.capEtd}</b>`:esc(x.capNote||"—")}${x.wpType!==undefined?`<div class="muted">WP ${esc(x.wpType||"any")}</div>`:""}</td></tr>`).join("")}</tbody></table></div>`;
+ $("historyTable").innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Calculated</th><th>Drawing</th><th>Start</th><th>CCT</th><th>Branch</th><th>Qty</th><th>Customer</th><th>Difficulty</th><th>Special</th><th>Factor</th><th>LT</th><th>ETD</th><th>Capacity ETD</th></tr></thead><tbody>${h.map(x=>`<tr><td>${formatDate(new Date(x.date))}</td><td>${esc(x.drawingNo||"—")}<div class="muted">${esc(x.inputSource||"Manual")}</div></td><td>${x.start}</td><td>${x.cct}</td><td>${x.branch??"—"}${x.branchLevel?` (L${x.branchLevel})`:""}</td><td>${x.qty??1}</td><td>${esc(x.customer)}</td><td>${esc(x.difficulty)}</td><td>${esc(x.special)}</td><td>${x.qtyFactor?Number(x.qtyFactor).toFixed(2)+"×":"1.00×"}</td><td><b>${x.lt} d</b></td><td><b>${x.etd}</b></td><td>${x.capEtd?`<b>${x.capEtd}</b>`:esc(x.capNote||"—")}${x.wpType!==undefined?`<div class="muted">WP ${esc(x.wpType||"any")}</div>`:""}${x.booking?`<div class="muted">${esc(x.booking)}</div>`:""}</td></tr>`).join("")}</tbody></table></div>`;
 }
 function renderMaster(){
  $("cctMaster").innerHTML=`<table><thead><tr><th>Range</th><th>Min</th><th>Max</th><th>Base Weeks</th><th>Base Days</th><th>Drawing Days</th></tr></thead><tbody>${master.cct.map((r,i)=>`<tr>

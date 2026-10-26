@@ -169,3 +169,13 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - **C** Caterpillar line (new, e.g. 10C08)
   - **P + E**
 - The Tracker / capacity feed must send S and C capacity: update the Tracker `Code.gs` (or `CapacityFeed.gs`).
+
+## V3.9 update — Production / Quotation booking
+- New ticks under the inputs: **Production** (book the CCT on its ETD week) or **Quotation** (record only), with the **ASSY No.** (or a quotation reference).
+- After the capacity check the result is sent to the Tracker (`PLANNER_BOOKINGS` tab):
+  - **Production**: the CCT × Qty is added to the Tracker capacity on the planned ETD (capacity-based ETD, else the formula ETD), so the same room is not promised twice. It stops counting when the ASSY gets a new row in PRIORITES BARU (the real order is counted there), when the ETD passes, or when it is cancelled in the Tracker.
+  - **Quotation**: recorded only. It can be confirmed as production in the Tracker (CAPACITY → PLANNER BOOKINGS) when the order comes.
+  - Re-planning the same ASSY replaces its booking, and its own booked load is left out of the check.
+- Booking needs the Tracker owner key: Master Data → Production Capacity → **Booking key** (paste the link from `createOwnerLink`). Without it the Planner still calculates.
+- P + E bookings count half on P and half on E; "Any" counts in the total only.
+- Needs the Tracker `Code.gs` with `doPost` (Planner bookings).

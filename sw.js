@@ -1,5 +1,5 @@
-const CACHE="mfg-lt-v3-8";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=3.8","./vendor/xlsx.full.min.js"];
+const CACHE="mfg-lt-v3-9";
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=3.9","./vendor/xlsx.full.min.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
