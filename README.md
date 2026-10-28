@@ -187,3 +187,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - When the first possible ETD week is full, **FIND ASSYs TO EXCHANGE** opens the Tracker with the ASSYs that could move later to bring the order back to that week.
 - With Production / Quotation ticked, that earliest free ETD is the one booked.
 - Tracker link: a `/dev` test link is refused with an explanation (it only works inside the Apps Script editor). An owner link (`…/exec?key=…`) pasted there is split: the key is saved as the booking key and the plain `/exec` link is stored.
+
+## V3.11 update — 3D special treatment
+- **3D** (+5 days) is a default special treatment: the harness must be shaped as drawn — arrow views (矢視), section views (K-K) or *HARNESS FORMING* / *DIRECTION OF HARNESS* figures with bend angles and branch directions.
+- Master data already saved in a browser gets 3D added once, on the first load of v3.11 (like Rocket in v3.1).
+- **The Analyzer decides**: its result files now carry `lt_specials` (each with the evidence text), found in the notes, BOM lines and the text printed anywhere on the sheet. *Load BOM Analyzer result* uses them first; the keyword hints only fill in for older result files.
+- Links can send it as `specials=3D`.
