@@ -186,3 +186,4 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - The capacity table lists the weeks from the earliest possible ETD.
   - When the first possible ETD week is full, **FIND ASSYs TO EXCHANGE** opens the Tracker with the ASSYs that could move later to bring the order back to that week.
 - With Production / Quotation ticked, that earliest free ETD is the one booked.
+- Tracker link: a `/dev` test link is refused with an explanation (it only works inside the Apps Script editor). An owner link (`…/exec?key=…`) pasted there is split: the key is saved as the booking key and the plain `/exec` link is stored.

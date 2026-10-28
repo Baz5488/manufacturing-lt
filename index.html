@@ -365,11 +365,16 @@ function jsonp(url){return new Promise((resolve,reject)=>{
  s.src=url+cb;document.head.appendChild(s);
 })}
 function saveCapacityUrl(){
- const v=$("capacityUrl").value.trim();
+ let v=$("capacityUrl").value.trim();
  if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v))return notice("capacityStatus","Paste the Tracker web app link (https://script.google.com/…/exec).","bad");
+ if(/\/dev(\?|$)/.test(v))return notice("capacityStatus","This is the <b>/dev</b> test link — it only works inside the Apps Script editor. Use the web app link ending in <b>/exec</b> (Apps Script → Deploy → Manage deployments → Web app URL).","bad");
+ // An owner link pasted here: keep the key as the booking key and save the plain /exec link.
+ const k=v.match(/[?&]key=([0-9a-f]{32})(?:&|$)/i);
+ if(k){try{localStorage.setItem(BOOKKEY,k[1].toLowerCase())}catch(e){}$("bookingKey").value="••••••••";v=v.split("?")[0];$("capacityUrl").value=v;}
  localStorage.setItem(CAPKEY,v);capacityCache=null;
  notice("capacityStatus","Testing link…","warn");
  fetchCapacity(true).then(d=>notice("capacityStatus",`✓ Connected. Capacity from ${d.activeWeeks} week(s) of FG data (${esc(d.fromWeek)} – ${esc(d.toWeek)}); ${d.etds.length} ETD(s) with booked load. Total ${fmtNum(d.capacity.TOTAL&&(d.capacity.TOTAL.value??d.capacity.TOTAL.average))} CCT/week (${esc(d.capacity.TOTAL&&d.capacity.TOTAL.value!==undefined?d.capacity.TOTAL.stat||"median":"average")}).`,"good"))
+  .then(()=>{if(k)$("capacityStatus").insertAdjacentHTML("beforeend",'<div class="notice good">✓ The key in the link was saved as the booking key; the link is stored without it.</div>')})
   .catch(e=>notice("capacityStatus","✕ "+esc(e.message),"bad"));
 }
 function bookedCell(c){return fmtNum(c.booked)+(c.carriedIn>0?`<div class="muted" style="font-size:11px">incl. ${fmtNum(c.carriedIn)} carried in</div>`:"")}
