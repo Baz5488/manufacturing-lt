@@ -31,7 +31,7 @@
       {level:1,name:"Easy",buffer:0},{level:2,name:"Medium",buffer:2},{level:3,name:"Hard",buffer:5},
       {level:4,name:"Very Hard",buffer:7},{level:5,name:"Extremely Hard",buffer:null}
     ],
-    specials: [["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2],["Rocket",-14]],
+    specials: [["Marker",4],["Ethernet",3],["Braiding",1],["Solder",2],["Rocket",-14],["3D",5]],
     branchLevels: [
       {label:"0–10",min:0,max:10,level:1},
       {label:"11–30",min:11,max:30,level:2},
@@ -51,7 +51,7 @@
 
   // Fill sections that older saved/exported master data may be missing.
   // Special treatments added to the defaults later: put into saved master data once (kept out if renamed or changed later).
-  const ADDED_SPECIALS = [["Rocket", -14]];
+  const ADDED_SPECIALS = [["Rocket", -14], ["3D", 5]];
 
   function normalizeMaster(m) {
     if (!m.quantityFactors) m.quantityFactors = clone(DEFAULT_MASTER.quantityFactors);
@@ -420,7 +420,10 @@
       Marker: ["marking tube", "marker tube", "マークチューブ", "マーカーチューブ", "wire marker"],
       Ethernet: ["ethernet", "イーサネット", "cat5", "cat6", "rj45"],
       Braiding: ["braided tub", "braided sleev", "twisttube", "twist tube", "編組チューブ", "expandable braid"],
-      Solder: ["solder", "はんだ", "半田"]
+      Solder: ["solder", "はんだ", "半田"],
+      // 3D = harness shaped as drawn (arrow / section views, "HARNESS FORMING"); these figure labels are usually
+      // outside the notes, so the Analyzer's own lt_specials (from the whole sheet) is used first
+      "3D": ["矢視", "direction of harness", "harness forming", "forming around", "フォーミング", "立体形状", "3d forming"]
     },
     branchBasis: "branch_segments" // = calculator_branch_count in quick_customers.json
   };
@@ -476,7 +479,14 @@
 
     const texts = (r.notes || []).map(str).concat((r.bom || []).map(b => `${str(b.description)} ${str(b.remarks)} ${str(b.specification)}`));
     const specials = [], evidence = {};
+    // the Analyzer decides: result files from Analyzer 2026-10-28+ carry lt_specials [{name, evidence}] (notes, BOM
+    // and the text printed anywhere on the sheet); the keyword hints below only fill in for older result files
+    for (const s of Array.isArray(r.lt_specials) ? r.lt_specials : []) {
+      const name = str(s && s.name);
+      if (name && !specials.includes(name)) { specials.push(name); evidence[name] = str(s.evidence); }
+    }
     for (const [name, words] of Object.entries(hints.specials)) {
+      if (specials.includes(name)) continue;
       for (const t of texts) {
         const w = words.find(w => t.toLowerCase().includes(w.toLowerCase()));
         if (w) { specials.push(name); const i = t.toLowerCase().indexOf(w.toLowerCase()); evidence[name] = t.slice(Math.max(0, i - 40), i + w.length + 60).trim(); break; }
