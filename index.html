@@ -199,10 +199,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.9 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.10 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.9"></script>
+<script src="lt-core.js?v=3.10"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -411,17 +411,37 @@ function backwardCapacity(r,feed,need,wp){
  const p=LTCore.planBackward(feed,{load:need,wpType:wp,deadline:b.required,lt:r.totalLT,today:b.today});
  const typeLabel=wpLabel(wp);let head,note,capEtd="";
  const exch=()=>exchangeLink({deadline:p.deadline,shortBy:p.shortBy,need:p.need},wp);
- if(p.status==="too-late"){head=`<div class="no">Even starting today the ETD is ${fd(p.earliestEtd)} — ${p.lateBy} day(s) after the required ETD. Shorten the LT (Rocket, overtime, split the lot) or agree a new ETD with the customer.</div>`;note=`Backward: ${p.lateBy}d too late`;}
+ const exchBtn=link=>link?`<p style="margin:10px 0 4px"><a class="exchange-btn" href="${esc(link)}" target="_blank" rel="noopener">🔁 FIND ASSYs TO EXCHANGE</a> <span class="muted">opens the Tracker with the ASSYs that could take a later ETD</span></p>`:`<p class="muted" style="margin:8px 0 4px">To see which ASSYs could move later, add the Tracker page link in Master Data → Production Capacity.</p>`;
+ // Too late: plan forward from today instead, so the earliest ETD with capacity (and how late it is) is still shown.
+ let fwd=null;
+ if(p.status==="too-late"){
+  const lateMsg=`<div class="no">Even starting today the ETD is ${fd(p.earliestEtd)} — ${p.lateBy} day(s) after the required ETD ${fd(p.deadline)}. Shorten the LT (Rocket, overtime, split the lot) or agree a new ETD with the customer.</div>`;
+  fwd=LTCore.planCapacity(feed,{load:need,wpType:wp,earliest:p.earliestEtd});
+  const first=fwd.candidates[0],lateBy=d=>Math.round((Date.parse(d)-Date.parse(p.deadline))/86400000);
+  const firstShort=first&&!first.fits?Math.ceil(need-Math.max(0,first.free)):0;
+  const firstExch=()=>exchBtn(exchangeLink({deadline:first.etd,shortBy:firstShort,need},wp));
+  if(fwd.status==="no-capacity"){head=lateMsg+`<p class="muted">No past capacity for ${esc(typeLabel)} — check the load of ${fd(p.earliestEtd)} by hand.</p>`;capEtd=p.earliestEtd;note=`Backward: ${p.lateBy}d too late`;}
+  else if(fwd.status==="too-big"){head=lateMsg+`<div class="no">The order (${fmtNum(need)} CCT) is also bigger than one week's capacity (${fmtNum(fwd.capacity)} CCT/week) — split it over about ${fwd.weeksNeeded} ETDs.</div>`;capEtd=p.earliestEtd;note=`Backward: ${p.lateBy}d too late, too big`;}
+  else if(fwd.suggested){const sg=fwd.suggested;capEtd=sg.etd;note=`Backward: too late — earliest free ETD ${sg.etd} (+${lateBy(sg.etd)}d)`;
+   head=lateMsg+`<div style="margin-top:10px">Earliest ETD with free capacity, starting today</div><div class="etd2">${fd(sg.etd)}</div><div class="no">${lateBy(sg.etd)} day(s) after the required ETD.</div>`+
+    (firstShort?`<div class="muted">The first possible ETD (${fd(first.etd)}) is full — short by ${fmtNum(firstShort)} CCT. Moving other ASSYs later could bring this order back to ${fd(first.etd)}.</div>${firstExch()}`:"");}
+  else{capEtd=p.earliestEtd;note=`Backward: too late, no free ETD in 26 weeks`;
+   head=lateMsg+`<div class="no">No ETD in the next 26 weeks from today has ${fmtNum(need)} CCT free.</div>${first?firstExch():""}`;}
+ }
  else if(p.status==="no-capacity"){head=`<div class="no">No past capacity for ${esc(typeLabel)} — start by ${fd(p.latestStart)} and check the load by hand.</div>`;note="Backward: no capacity data";}
  else if(p.status==="short"){head=`<div>Required ETD</div><div class="etd2">${fd(p.deadline)}</div><div class="no">⚠️ No week up to the required ETD has ${fmtNum(p.need)} CCT free — short by ${fmtNum(p.shortBy)} CCT in the ETD week. ${p.need>p.capacity?`The order alone is more than one week's capacity (${fmtNum(p.capacity)}): split it over several ETDs.`:"Make room by moving other ASSYs to a later ETD."}</div>`+
   (exch()?`<p style="margin:10px 0 4px"><a class="exchange-btn" href="${esc(exch())}" target="_blank" rel="noopener">🔁 FIND ASSYs TO EXCHANGE</a> <span class="muted">opens the Tracker with the ASSYs that could take a later ETD</span></p>`:`<p class="muted" style="margin:8px 0 4px">To see which ASSYs could move later, add the Tracker page link in Master Data → Production Capacity.</p>`);
   note=`Backward: short ${fmtNum(p.shortBy)} CCT`;capEtd=p.deadline;}
  else{const s=p.suggested;head=`<div>${p.status==="ok"?"Capacity OK in the required ETD week":"Required ETD week is full — produce for an earlier ETD"}</div><div class="etd2">Start by ${fd(s.start)}</div><div class="muted">ETD ${fd(s.etd)}${p.daysEarlier>0?` — ${p.daysEarlier} day(s) before the required ETD, so start ${p.daysEarlier} day(s) earlier than the formula start (${fd(p.latestStart)})`:""}.</div>`;
   note=p.status==="ok"?"Backward: OK":`Backward: start ${p.daysEarlier}d earlier`;capEtd=s.etd;}
- const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?' <span class="muted">(required)</span>':""}</td><td>${fd(c.start)}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
+ const shown=fwd||p,pickEtd=shown.suggested&&shown.suggested.etd;
+ // Forward rows have no start date: start = ETD − LT, never before today.
+ const startOf=c=>c.start||(LTCore.addDays(c.etd,-r.totalLT)<b.today?b.today:LTCore.addDays(c.etd,-r.totalLT));
+ const rows=(shown.candidates||[]).map(c=>`<tr class="${pickEtd&&c.etd===pickEtd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?' <span class="muted">(required)</span>':""}</td><td>${fd(startOf(c))}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
+ const capInfo=`This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(shown.capacity)} CCT/week (${esc(shown.stat)} of ${feed.activeWeeks} week(s) of FG data).`;
  box.innerHTML=`<div class="cap"><h3>⏪ Backward plan · production capacity · ${esc(typeLabel)}</h3>${head}
-  <p class="muted">Searched the ETD weeks from the earliest possible (${fd(p.earliestEtd)} = today + ${r.totalLT} days LT) to the required ETD; the latest week with room is picked, so production starts as late as possible. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
-  ${rows?`<table><thead><tr><th>ETD</th><th>Start by</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
+  <p class="muted">${fwd?`The required ETD cannot be met, so the ETD weeks were searched forward from the earliest possible (${fd(p.earliestEtd)} = today + ${r.totalLT} days LT); the first week with room is picked.`:`Searched the ETD weeks from the earliest possible (${fd(p.earliestEtd)} = today + ${r.totalLT} days LT) to the required ETD; the latest week with room is picked, so production starts as late as possible.`} ${capInfo}</p>
+  ${rows?`<table><thead><tr><th>ETD</th><th>Start by</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(shown)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
  recordBooking(r,capEtd,note);
 }

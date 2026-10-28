@@ -179,3 +179,10 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Booking needs the Tracker owner key: Master Data → Production Capacity → **Booking key** (paste the link from `createOwnerLink`). Without it the Planner still calculates.
 - P + E bookings count half on P and half on E; "Any" counts in the total only.
 - Needs the Tracker `Code.gs` with `doPost` (Planner bookings).
+
+## V3.10 update — backward plan when the required ETD cannot be met
+- When even starting today misses the required ETD, the backward plan now searches forward from today instead of stopping:
+  - It shows the earliest ETD with free capacity and how many days after the required ETD that is.
+  - The capacity table lists the weeks from the earliest possible ETD.
+  - When the first possible ETD week is full, **FIND ASSYs TO EXCHANGE** opens the Tracker with the ASSYs that could move later to bring the order back to that week.
+- With Production / Quotation ticked, that earliest free ETD is the one booked.
