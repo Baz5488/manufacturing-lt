@@ -419,7 +419,9 @@
     specials: {
       Marker: ["marking tube", "marker tube", "マークチューブ", "マーカーチューブ", "wire marker"],
       Ethernet: ["ethernet", "イーサネット", "cat5", "cat6", "rj45"],
-      Braiding: ["braided tub", "braided sleev", "twisttube", "twist tube", "編組チューブ", "expandable braid"],
+      // braiding = woven braid made in the factory from braiding yarn (Caterpillar BRAID-YL ...); twist tube and
+      // other sleeves (Federal-Mogul) are not braiding
+      Braiding: ["woven braid", "ウーブン", "yarn", "braid-yl"],
       Solder: ["solder", "はんだ", "半田"],
       // 3D = harness shaped as drawn (arrow / section views, "HARNESS FORMING"); these figure labels are usually
       // outside the notes, so the Analyzer's own lt_specials (from the whole sheet) is used first
@@ -480,12 +482,13 @@
     const texts = (r.notes || []).map(str).concat((r.bom || []).map(b => `${str(b.description)} ${str(b.remarks)} ${str(b.specification)}`));
     const specials = [], evidence = {};
     // the Analyzer decides: result files from Analyzer 2026-10-28+ carry lt_specials [{name, evidence}] (notes, BOM
-    // and the text printed anywhere on the sheet); the keyword hints below only fill in for older result files
+    // and the text printed anywhere on the sheet) and are used as they are; the keyword hints below are only for
+    // older result files without lt_specials
     for (const s of Array.isArray(r.lt_specials) ? r.lt_specials : []) {
       const name = str(s && s.name);
       if (name && !specials.includes(name)) { specials.push(name); evidence[name] = str(s.evidence); }
     }
-    for (const [name, words] of Object.entries(hints.specials)) {
+    for (const [name, words] of Object.entries(Array.isArray(r.lt_specials) ? {} : hints.specials)) {
       if (specials.includes(name)) continue;
       for (const t of texts) {
         const w = words.find(w => t.toLowerCase().includes(w.toLowerCase()));

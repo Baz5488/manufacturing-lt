@@ -199,3 +199,7 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Applies everywhere the drawing LT is used: total LT, ETD, backward start date, and the Rocket earliest ETD (start + 1 production week).
 - History shows "Repeat order" under Special. Input JSON / URL accept `repeat` (`true`, `1`, `yes`).
 - Core: `calcLeadTime(inputs)` takes `inputs.repeat`; the result has `repeat` and `drawingDays` (the drawing days actually used).
+
+## V3.13 update — Analyzer special treatments only; braiding = woven braid
+- A BOM Analyzer result that carries `lt_specials` is used **as it is**: the calculator no longer adds treatments from its own keyword hints on top. The hints are only for older result files without `lt_specials`.
+- **Braiding** means woven braid made in the factory from braiding yarn — *woven braid*, *ウーブン*, *yarn*, Caterpillar *BRAID-YL* (mostly Caterpillar and Komatsu harnesses). Twist tube and other sleeves (e.g. Federal-Mogul TwistTube) are **not** braiding.
