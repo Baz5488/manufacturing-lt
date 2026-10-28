@@ -118,6 +118,7 @@
       qty: toInt(p.qty),
       startDate: typeof p.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.startDate) ? p.startDate : null,
       specials: [],
+      repeat: p.repeat === undefined || p.repeat === null ? null : p.repeat === true || /^(true|1|yes|y)$/i.test(String(p.repeat).trim()),
       source: p.source && typeof p.source === "object" ? p.source : null
     };
     if (p.customer !== undefined) {
@@ -138,7 +139,8 @@
   }
 
   /*
-   * inputs: { cct, branch, qty, customer, specials: [names], startDate }
+   * inputs: { cct, branch, qty, customer, specials: [names], startDate, repeat }
+   *   repeat: true = repeat order, the drawing is already broken down -> no drawing breakdown LT
    * returns { status: "ok" | "review" | "error", errors: [], ...breakdown }
    */
   function calcLeadTime(inputs, m) {
@@ -174,6 +176,7 @@
       status: "ok", errors: [],
       customer: c[0], cct, branch, qty, startDate,
       cctRule: rule, branchRule: bl, customerLevel, branchLevel, appliedLevel, levelSource, difficulty: d,
+      repeat: !!inputs.repeat, drawingDays: inputs.repeat ? 0 : rule.drawingDays,
       specials: specials.map(s => s[0]), specialDays, shortenDays, shortenScale: null, reductionDays: 0, qtyFactor: qf || null,
       preQtyLT: null, totalLT: null, etd: null
     };
@@ -181,7 +184,7 @@
       result.status = "review";
       return result;
     }
-    result.preQtyLT = rule.baseDays + rule.drawingDays + d.buffer + specialDays;
+    result.preQtyLT = rule.baseDays + result.drawingDays + d.buffer + specialDays;
     result.shortenScale = Math.max(0, 2 - Number(qf.factor));
     result.reductionDays = Math.round(-shortenDays * result.shortenScale);
     result.totalLT = Math.max(1, Math.ceil(result.preQtyLT * Number(qf.factor)) - result.reductionDays);
@@ -189,7 +192,7 @@
     // Rocket = must-achieve short-LT service: the ETD above (with Rocket's days) is the latest allowed date;
     // an earlier ETD is better when capacity allows, but not before drawing breakdown + one production week.
     if (result.specials.some(n => n.toLowerCase() === ROCKET)) {
-      result.rocket = { deadline: result.etd, floor: addDays(startDate, rule.drawingDays + ROCKET_MIN_PRODUCTION_DAYS) };
+      result.rocket = { deadline: result.etd, floor: addDays(startDate, result.drawingDays + ROCKET_MIN_PRODUCTION_DAYS) };
     }
     return result;
   }

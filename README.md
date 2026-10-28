@@ -193,3 +193,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Master data already saved in a browser gets 3D added once, on the first load of v3.11 (like Rocket in v3.1).
 - **The Analyzer decides**: its result files now carry `lt_specials` (each with the evidence text), found in the notes, BOM lines and the text printed anywhere on the sheet. *Load BOM Analyzer result* uses them first; the keyword hints only fill in for older result files.
 - Links can send it as `specials=3D`.
+
+## V3.12 update — repeat order
+- New tick **Repeat order**: the drawing is already broken down, so the drawing breakdown LT is 0 days (the result shows the days it saves).
+- Applies everywhere the drawing LT is used: total LT, ETD, backward start date, and the Rocket earliest ETD (start + 1 production week).
+- History shows "Repeat order" under Special. Input JSON / URL accept `repeat` (`true`, `1`, `yes`).
+- Core: `calcLeadTime(inputs)` takes `inputs.repeat`; the result has `repeat` and `drawingDays` (the drawing days actually used).
