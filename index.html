@@ -78,6 +78,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <div class="mini"><small>Difficulty Buffer</small><b id="customerBuffer">—</b></div>
 </div>
 <div class="field" style="margin-top:15px"><label>Special Treatment</label><div class="checks" id="specials"></div></div>
+<div class="field"><label class="check" style="font-weight:600"><input type="checkbox" id="repeatOrder"><span><b>Repeat order</b> — drawing already broken down, no drawing breakdown LT</span></label></div>
 <div class="field"><label>Plan From</label><select id="planMode"><option value="forward">Start date → ETD</option><option value="backward">Required ETD → latest start date</option></select></div>
 <div class="field" id="startField"><label>Manufacturing Start Date</label><input id="startDate" type="date"></div>
 <div class="field" id="requiredField" style="display:none"><label>Required ETD <span class="muted">(must meet the customer due date)</span></label><input id="requiredEtd" type="date"></div>
@@ -199,10 +200,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.10 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.11 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.10"></script>
+<script src="lt-core.js?v=3.11"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -278,7 +279,7 @@ function customerInfo(){
 function readInputs(){
  const n=id=>{const v=$(id).value;return v===""?null:Number(v)};
  return {cct:n("cct"),branch:n("branch"),qty:n("qty"),customer:$("customer").value,startDate:$("startDate").value,
-  specials:[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)][0])};
+  specials:[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)][0]),repeat:$("repeatOrder").checked};
 }
 function calculate(){
  $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("bookingNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";capacityRun++;
@@ -294,7 +295,7 @@ function calculate(){
  r.booking=booking;
  const rule=r.cctRule,d=r.difficulty,qf=r.qtyFactor;
  $("baseLT").textContent=rule.baseDays===null?"Discuss":`${rule.baseDays} days (${rule.baseWeeks} weeks)`;
- $("drawingLT").textContent=`${rule.drawingDays} days`;
+ $("drawingLT").textContent=r.repeat?`0 days (repeat order; new drawing ${rule.drawingDays} days)`:`${rule.drawingDays} days`;
  $("difficultyLT").textContent=d.buffer===null?`Discuss (L${d.level}, ${r.levelSource})`:`+${d.buffer} days (L${d.level}, ${r.levelSource})`;
  $("specialLT").textContent=signedDays(r.specialDays);
  $("reductionRow").style.display=r.shortenDays?"":"none";
@@ -321,10 +322,10 @@ function calculate(){
   $("dateBox").className="notice good";
  }
  $("dateBox").style.display="block";
- notice("resultNotice",`✓ ${esc(r.customer)}: customer L${r.customerLevel}, branch ${r.branch} → L${r.branchLevel}, applied Level ${d.level} (${esc(d.name)}), Qty ${r.qty}, factor ${Number(qf.factor).toFixed(2)}×. Calculation completed.`,"good");
+ notice("resultNotice",`✓ ${esc(r.customer)}: customer L${r.customerLevel}, branch ${r.branch} → L${r.branchLevel}, applied Level ${d.level} (${esc(d.name)}), Qty ${r.qty}, factor ${Number(qf.factor).toFixed(2)}×${r.repeat?", repeat order (no drawing breakdown)":""}. Calculation completed.`,"good");
  checkCapacity(r);
  const src=sourceSummary();
- const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:r.specials.join(", ")||"None",preQtyLT:r.preQtyLT,lt:total,etd:r.etd,plan:backward?"backward":"forward",wpType:$("wpType").value,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
+ const h=history();h.unshift({date:new Date().toISOString(),start:r.startDate,cct:r.cct,branch:r.branch,branchLevel:r.branchLevel,qty:r.qty,qtyFactor:Number(qf.factor),customer:r.customer,difficulty:`L${d.level} ${d.name}`,special:(r.specials.join(", ")||"None")+(r.repeat?" · Repeat order":""),preQtyLT:r.preQtyLT,lt:total,etd:r.etd,plan:backward?"backward":"forward",wpType:$("wpType").value,drawingNo:src.drawingNo,inputSource:src.text});saveHistory(h.slice(0,200));renderHistory();
 }
 
 // ---- Production capacity (PROTO CONTROL Tracker feed, schema assy-finder/capacity@1 — id kept for compatibility) ----
@@ -463,7 +464,7 @@ function rocketCapacity(r,feed,need,wp){
  else{head=`<div>Rocket ETD — earliest with free capacity</div><div class="etd2">${fd(p.suggested.etd)}</div><div class="muted">${p.daysEarlier>0?`${p.daysEarlier} days before the standard Rocket ETD (${fd(p.deadline)}).`:`On the standard Rocket ETD; earlier weeks are full.`}</div>`;note=p.daysEarlier>0?`Rocket: ${p.daysEarlier} days early`:"Rocket: on standard ETD";capEtd=p.suggested.etd;}
  const rows=p.candidates.map(c=>`<tr class="${p.suggested&&c.etd===p.suggested.etd?"pick":""}"><td>${fd(c.etd)}${c.etd===p.deadline?" <span class=\"muted\">(Rocket ETD)</span>":""}</td><td class="right">${bookedCell(c)}</td><td class="right">${fmtNum(c.free)}</td><td class="${c.fits?"yes":"no"}">${c.fits?"✓ fits":"✕ full"}</td></tr>`).join("");
  box.innerHTML=`<div class="cap"><h3>🚀 Rocket · production capacity · ${esc(typeLabel)}</h3>${head}
-  <p class="muted">Searched from ${fd(p.floor)} (start + drawing breakdown ${r.cctRule.drawingDays} days + 1 production week) to the Rocket ETD. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
+  <p class="muted">Searched from ${fd(p.floor)} (start + ${r.repeat?"no drawing breakdown (repeat order)":`drawing breakdown ${r.drawingDays} days`} + 1 production week) to the Rocket ETD. This order needs <b>${fmtNum(need)} CCT</b> (CCT ${r.cct} × Qty ${r.qty}). Capacity ${fmtNum(p.capacity)} CCT/week (${esc(p.stat)} of ${feed.activeWeeks} week(s) of FG data).</p>
   ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
  recordBooking(r,capEtd,note);
@@ -533,7 +534,7 @@ let importSource=null;
 function prefillFromURL(){
  const q=new URLSearchParams(location.search);if(![...q.keys()].length)return;
  const g=(...k)=>{for(const x of k)if(q.has(x))return q.get(x)};
- const payload={customer:g("customer"),wireCount:g("wireCount","cct"),branchCount:g("branchCount","branch"),qty:g("qty"),startDate:g("startDate","start"),specials:g("specials"),
+ const payload={customer:g("customer"),wireCount:g("wireCount","cct"),branchCount:g("branchCount","branch"),qty:g("qty"),startDate:g("startDate","start"),specials:g("specials"),repeat:g("repeat"),
   source:{tool:g("tool")||"URL",drawingNo:g("drawingNo","drawing"),revision:g("revision","rev"),cctSource:g("cctSource"),branchSource:g("branchSource")}};
  for(const k of Object.keys(payload))if(payload[k]===undefined)delete payload[k];
  const detected=g("detected");payload.source.detected=detected?detected.split(","):["wireCount","branchCount","qty","customer","startDate","specials"].filter(k=>k in payload);
@@ -574,6 +575,7 @@ function applyInput(payload){
  const set=(key,val)=>{if(val===null||val===undefined)return;$(FIELD_IDS[key]).value=String(val);filled.push(key)};
  if(payload.customer!==undefined&&!inputs.customer)$("customer").value="";
  set("wireCount",inputs.cct);set("branchCount",inputs.branch);set("qty",inputs.qty);set("customer",inputs.customer);set("startDate",inputs.startDate);
+ if(inputs.repeat!==null){$("repeatOrder").checked=inputs.repeat;filled.push("repeat")}
  if(payload.specials!==undefined){document.querySelectorAll("#specials input").forEach(x=>x.checked=inputs.specials.includes(master.specials[Number(x.dataset.i)][0]));filled.push("specials")}
  const src=inputs.source||{};
  const detected=new Set((Array.isArray(src.detected)?src.detected:filled).filter(k=>filled.includes(k)));

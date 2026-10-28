@@ -187,3 +187,9 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
   - When the first possible ETD week is full, **FIND ASSYs TO EXCHANGE** opens the Tracker with the ASSYs that could move later to bring the order back to that week.
 - With Production / Quotation ticked, that earliest free ETD is the one booked.
 - Tracker link: a `/dev` test link is refused with an explanation (it only works inside the Apps Script editor). An owner link (`…/exec?key=…`) pasted there is split: the key is saved as the booking key and the plain `/exec` link is stored.
+
+## V3.11 update — repeat order
+- New tick **Repeat order**: the drawing is already broken down, so the drawing breakdown LT is 0 days (the result shows the days it saves).
+- Applies everywhere the drawing LT is used: total LT, ETD, backward start date, and the Rocket earliest ETD (start + 1 production week).
+- History shows "Repeat order" under Special. Input JSON / URL accept `repeat` (`true`, `1`, `yes`).
+- Core: `calcLeadTime(inputs)` takes `inputs.repeat`; the result has `repeat` and `drawingDays` (the drawing days actually used).
