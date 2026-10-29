@@ -203,3 +203,14 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 ## V3.13 update — Analyzer special treatments only; braiding = woven braid
 - A BOM Analyzer result that carries `lt_specials` is used **as it is**: the calculator no longer adds treatments from its own keyword hints on top. The hints are only for older result files without `lt_specials`.
 - **Braiding** means woven braid made in the factory from braiding yarn — *woven braid*, *ウーブン*, *yarn*, Caterpillar *BRAID-YL* (mostly Caterpillar and Komatsu harnesses). Twist tube and other sleeves (e.g. Federal-Mogul TwistTube) are **not** braiding.
+
+## V3.14 update — 未完製品入荷フロー dashboard
+- New page **`incomplete.html`** (link in the Planner header): tracks each incomplete harness (未完製品) from arrival to work completion, following the 未完製品入荷情報 flow.
+- Steps and owners: ハーネス品番情報 (確認印 from 生産管理・営業・技術部門・調達・品証・物流) → 理由 (調達/技術部門/営業) → ハーネスの状態確認 (生産管理) → 作業内容確認 / 国内作業可否 (技術部門)
+  - **可** → 作業部署の決定 (営業・技術部門・調達・品証 確認印) and BEIへ未完連絡 (生産管理), then 国内部品確認 (調達), 作業着手 / 作業完了 (作業担当)
+  - **否** → 納期調整 (営業); the 可-only steps show as 対象外
+  - 入荷情報 (インボイス番号 / 数量 / ETA, 生産管理) → 内容確認 (確認印 from all six departments)
+- Dashboard: open / my-department / overdue / completed KPIs, per-department "対応待ち" counts and filter, progress bar, current step and waiting departments for each case, 納期超過 and ETA超過 flags.
+- Choose **自分の部署** and **担当者名** at the top: stamps and reports record who and when, and every action goes to the case history. Changing 品番情報 or 入荷情報 resets the stamps that confirmed it.
+- Data is stored in this browser (localStorage). Share with **JSON 出力 / JSON 読込** (merge by case, newer history wins); **CSV 出力** for Excel.
+- Service worker: cache `mfg-lt-v3-14`; a page is now cached under its own URL (before, every page was cached as `index.html`).
