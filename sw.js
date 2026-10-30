@@ -1,5 +1,5 @@
-const CACHE="mfg-lt-v3-13";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./lt-core.js?v=3.13","./vendor/xlsx.full.min.js"];
+const CACHE="mfg-lt-v3-15";
+const ASSETS=["./","./index.html","./incomplete.html","./manifest.json","./icon.svg","./lt-core.js?v=3.14","./vendor/xlsx.full.min.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -37,11 +37,11 @@ self.addEventListener("fetch", event => {
         .then(response => {
           if (response.ok) {
             const copy = response.clone();
-            caches.open(CACHE).then(cache => cache.put("./index.html", copy));
+            caches.open(CACHE).then(cache => cache.put(event.request.url, copy));
           }
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match(event.request.url, { ignoreSearch: true }).then(r => r || caches.match("./index.html")))
     );
     return;
   }

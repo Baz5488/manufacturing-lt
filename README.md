@@ -203,3 +203,43 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 ## V3.13 update — Analyzer special treatments only; braiding = woven braid
 - A BOM Analyzer result that carries `lt_specials` is used **as it is**: the calculator no longer adds treatments from its own keyword hints on top. The hints are only for older result files without `lt_specials`.
 - **Braiding** means woven braid made in the factory from braiding yarn — *woven braid*, *ウーブン*, *yarn*, Caterpillar *BRAID-YL* (mostly Caterpillar and Komatsu harnesses). Twist tube and other sleeves (e.g. Federal-Mogul TwistTube) are **not** braiding.
+
+## V3.14 update — 未完製品入荷フロー dashboard
+- New page **`incomplete.html`** (link in the Planner header): tracks each incomplete harness (未完製品) from arrival to work completion, following the 未完製品入荷情報 flow.
+- Steps and owners: ハーネス品番情報 (確認印 from 生産管理・営業・技術部門・調達・品証・物流) → 理由 (調達/技術部門/営業) → ハーネスの状態確認 (生産管理) → 作業内容確認 / 国内作業可否 (技術部門)
+  - **可** → 作業部署の決定 (営業・技術部門・調達・品証 確認印) and BEIへ未完連絡 (生産管理), then 国内部品確認 (調達), 作業着手 / 作業完了 (作業担当)
+  - 作業部署の決定 names the 作業部署 and the 作業担当者 (a person with the skill for the completion work — usually 製造, sometimes 技術部門, 品証 or 営業). 作業着手 / 作業完了 then wait on that department.
+  - 作業着手 opens only after 作業部署の決定, 内容確認 and 国内部品確認 are done.
+  - **否** → 納期調整 (営業); the 可-only steps show as 対象外
+  - 入荷情報 (インボイス番号 / 数量 / ETA, 生産管理) → 内容確認 (確認印 from all six departments)
+- Dashboard: open / my-department / overdue / completed KPIs, per-department "対応待ち" counts and filter, progress bar, current step and waiting departments for each case, 納期超過 and ETA超過 flags.
+- Choose **自分の部署** and **担当者名** at the top: stamps and reports record who and when, and every action goes to the case history. Changing 品番情報 or 入荷情報 resets the stamps that confirmed it.
+- Data is stored in this browser (localStorage). Share with **JSON 出力 / JSON 読込** (merge by case, newer history wins); **CSV 出力** for Excel.
+- Service worker: cache `mfg-lt-v3-14`; a page is now cached under its own URL (before, every page was cached as `index.html`).
+
+## V3.15 update — 未完製品 cases shared through the Tracker
+- `incomplete.html` can keep its cases in the PROTO CONTROL Tracker, so every department and the factory side see the same cases. They are stored in a new Tracker tab **INCOMPLETE_CASES** (one row per case with readable columns — 品番, 状態, 現在のステップ, 対応待ち部署, ETA… — and the full case as JSON in a hidden last column).
+- Two links, separate from the Tracker owner key:
+  - **編集リンク** — departments and 作業担当: register cases, stamp, report.
+  - **閲覧リンク** — read only (e.g. the factory side): sees everything, cannot change anything.
+- Opening a link connects that browser (the key is then removed from the address bar). The bar at the top shows the connection: 🔗 連携中 (編集 / 閲覧のみ), ⚠ cannot connect (changes are kept and sent when the Tracker answers again), or 💾 this browser only.
+- The page re-reads the Tracker every minute and when the tab is opened again. If two people change the same case at the same time, the second one is told and shown the latest version to redo their action, so nobody's stamp is overwritten.
+- Cases saved before in a browser: **Tracker 連携 → Tracker へアップロード**.
+
+### Setup (Tracker owner, once)
+1. Open the Tracker spreadsheet → **Extensions → Apps Script**.
+2. **File → New → Script**, name it `IncompleteCases`, and paste [`tracker/IncompleteCases.gs`](tracker/IncompleteCases.gs).
+3. In `Code.gs`, add one line at the start of `doGet(e)` and one at the start of `doPost(e)`:
+   ```js
+   function doGet(e) {
+     var inc = incompleteGet_(e); if (inc) return inc;
+     // … existing code …
+   }
+   function doPost(e) {
+     var inc = incompletePost_(e); if (inc) return inc;
+     // … existing code …
+   }
+   ```
+4. **Deploy → Manage deployments → Edit → Version: New version → Deploy** (same `/exec` URL as now).
+5. Select `createIncompleteLinks` and **Run**. The log shows the 編集リンク and 閲覧リンク — share them. If the Planner is published at another address, change `INC_PAGE_URL` at the top of the file first.
+6. To stop old links (e.g. someone left): run `resetIncompleteKeys` and share the new links.
