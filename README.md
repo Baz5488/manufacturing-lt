@@ -208,6 +208,8 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - New page **`incomplete.html`** (link in the Planner header): tracks each incomplete harness (未完製品) from arrival to work completion, following the 未完製品入荷情報 flow.
 - Steps and owners: ハーネス品番情報 (確認印 from 生産管理・営業・技術部門・調達・品証・物流) → 理由 (調達/技術部門/営業) → ハーネスの状態確認 (生産管理) → 作業内容確認 / 国内作業可否 (技術部門)
   - **可** → 作業部署の決定 (営業・技術部門・調達・品証 確認印) and BEIへ未完連絡 (生産管理), then 国内部品確認 (調達), 作業着手 / 作業完了 (作業担当)
+  - 作業部署の決定 names the 作業部署 and the 作業担当者 (a person with the skill for the completion work — usually 製造, sometimes 技術部門, 品証 or 営業). 作業着手 / 作業完了 then wait on that department.
+  - 作業着手 opens only after 作業部署の決定, 内容確認 and 国内部品確認 are done.
   - **否** → 納期調整 (営業); the 可-only steps show as 対象外
   - 入荷情報 (インボイス番号 / 数量 / ETA, 生産管理) → 内容確認 (確認印 from all six departments)
 - Dashboard: open / my-department / overdue / completed KPIs, per-department "対応待ち" counts and filter, progress bar, current step and waiting departments for each case, 納期超過 and ETA超過 flags.

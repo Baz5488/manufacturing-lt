@@ -96,7 +96,7 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
 <script>
 const KEY="mfg-incomplete-cases",ME_KEY="mfg-incomplete-me";
 const ALL6=["生産管理","営業","技術部門","調達","品証","物流"];
-const DEPTS=[...ALL6,"作業担当"];
+const DEPTS=[...ALL6,"製造"];  // 製造: production, where the 作業担当 usually comes from
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
@@ -108,6 +108,7 @@ function load(){try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{retur
 function save(){try{localStorage.setItem(KEY,JSON.stringify(cases))}catch(e){alert("保存できませんでした: "+e.message)}}
 let cases=load();
 let me=(()=>{try{return JSON.parse(localStorage.getItem(ME_KEY))||{}}catch{return{}}})();
+if(me.dept&&!DEPTS.includes(me.dept))me.dept="";
 let deptFilter="";
 
 /* ---- Flow definition (matches the 未完製品入荷情報 sheet) ----
@@ -117,22 +118,25 @@ const STEPS=[
  {id:"reason",name:"理由",detail:"未完になった理由",owners:["調達","技術部門","営業"],out:"レポート",kind:"report"},
  {id:"condition",name:"ハーネスの状態確認",detail:"入荷品の状態",owners:["生産管理"],out:"レポート",kind:"report"},
  {id:"work",name:"作業内容確認",detail:"国内作業可否",owners:["技術部門"],out:"可 / 否",kind:"decision"},
- {id:"workDept",name:"作業部署の決定",detail:"可 → 作業する部署を決定",owners:["営業","技術部門","調達","品証"],out:"確認印",kind:"stamps",branch:"可",after:["work"]},
+ {id:"workDept",name:"作業部署の決定",detail:"可 → 作業部署と作業担当者 (スキルのある人) を決定",owners:["営業","技術部門","調達","品証"],out:"確認印",kind:"stamps",branch:"可",after:["work"]},
  {id:"bei",name:"BEIへ未完連絡",detail:"可 → BEI へ連絡",owners:["生産管理"],out:"連絡済",kind:"report",branch:"可",after:["work"]},
  {id:"schedule",name:"納期調整",detail:"否 → 顧客納期を調整",owners:["営業"],out:"新納期",kind:"report",branch:"否",after:["work"]},
  {id:"parts",name:"国内部品確認",detail:"在庫有無",owners:["調達"],out:"レポート",kind:"decision"},
  {id:"arrival",name:"入荷情報",detail:"インボイス番号 / 数量 / およその着日",owners:["生産管理"],out:"インボイス番号 / 数量 / ETA",kind:"report"},
  {id:"arrivalCheck",name:"内容確認",detail:"入荷情報の確認",owners:ALL6,out:"確認印",kind:"stamps",after:["arrival"]},
- {id:"start",name:"作業着手",detail:"着手",owners:["作業担当"],out:"着手日",kind:"report",branch:"可",after:["workDept","arrivalCheck","parts"]},
- {id:"finish",name:"作業完了",detail:"完了",owners:["作業担当"],out:"完了日",kind:"report",branch:"可",after:["start"]},
+ {id:"start",name:"作業着手",detail:"着手",owners:["作業担当"],assigned:true,out:"着手日",kind:"report",branch:"可",after:["workDept","arrivalCheck","parts"]},
+ {id:"finish",name:"作業完了",detail:"完了",owners:["作業担当"],assigned:true,out:"完了日",kind:"report",branch:"可",after:["start"]},
 ];
 const STEP=Object.fromEntries(STEPS.map(s=>[s.id,s]));
 
+/* 作業着手 / 作業完了 belong to the 作業担当 named in 作業部署の決定 — usually 製造, sometimes 技術部門, 品証 or 営業. */
+function ownersOf(c,s){return s.assigned?[c.steps.workDept.dept||"作業担当"]:s.owners}
+function whoText(c,s){if(!s.assigned)return s.owners.join("、");const w=c.steps.workDept;return w.dept?`作業担当 — ${esc(w.dept)}${w.worker?" "+esc(w.worker):""}`:"作業担当 (作業部署の決定で指名)"}
 function blank(){return{info:{stamps:{}},reason:{},condition:{},work:{},workDept:{stamps:{}},bei:{},schedule:{},parts:{},arrival:{},arrivalCheck:{stamps:{}},start:{},finish:{}}}
 
 function isDone(c,s){
  const d=c.steps[s.id]||{};
- if(s.kind==="stamps")return s.owners.every(o=>d.stamps&&d.stamps[o])&&(s.id!=="workDept"||!!d.dept);
+ if(s.kind==="stamps")return s.owners.every(o=>d.stamps&&d.stamps[o])&&(s.id!=="workDept"||!!(d.dept&&d.worker));
  if(s.id==="arrival")return !!(d.invoice&&d.qty&&d.eta&&d.at);
  if(s.kind==="decision")return !!d.value;
  return !!d.at;
@@ -149,9 +153,9 @@ function status(c,s){
 function pendingOwners(c,s){
  if(status(c,s)!=="todo")return[];
  if(s.kind==="stamps"){const st=c.steps[s.id].stamps||{};return s.owners.filter(o=>!st[o])}
- return s.owners;
+ return ownersOf(c,s);
 }
-function waitingDepts(c){const set=new Set();STEPS.forEach(s=>pendingOwners(c,s).forEach(o=>set.add(o)));return DEPTS.filter(d=>set.has(d))}
+function waitingDepts(c){const set=new Set();STEPS.forEach(s=>pendingOwners(c,s).forEach(o=>set.add(o)));return[...DEPTS.filter(d=>set.has(d)),...[...set].filter(d=>!DEPTS.includes(d))]}
 function isComplete(c){return STEPS.every(s=>{const st=status(c,s);return st==="done"||st==="na"})}
 function doneAt(c){let t="";Object.values(c.steps).forEach(d=>{if(d.at>t)t=d.at;Object.values(d.stamps||{}).forEach(x=>{if(x.at>t)t=x.at})});return t||null}
 function flags(c){
@@ -241,7 +245,9 @@ function body(c,s){
    <div class="actions" style="margin-top:6px"><button class="primary small" data-save="${s.id}" ${dis}>レポート登録</button></div>${stamped(d)}`;
  case"work":return`<div class="actions"><span>国内作業</span><span class="seg">${["可","否"].map(v=>`<button data-dec="work" data-v="${v}" class="${d.value===v?"on":""}">${v}</button>`).join("")}</span></div>
    <textarea data-note="work" placeholder="作業内容 / 判断理由" style="margin-top:8px">${esc(d.note||"")}</textarea>${stamped(d)}`;
- case"workDept":return`<div class="field"><label>作業部署</label><input data-wd ${dis} value="${esc(d.dept||"")}" placeholder="例: 国内工場 / 外注先"></div>${stampHtml(c,s)}`;
+ case"workDept":return`<div class="inline" style="margin-bottom:8px"><div><label>作業部署</label><select data-wd="dept" ${dis}><option value="">— 選択 —</option>${DEPTS.map(x=>`<option ${d.dept===x?"selected":""}>${x}</option>`).join("")}${d.dept&&!DEPTS.includes(d.dept)?`<option selected>${esc(d.dept)}</option>`:""}</select></div>
+   <div><label>作業担当者</label><input data-wd="worker" ${dis} value="${esc(d.worker||"")}" placeholder="スキルのある担当者"></div></div>
+   <p class="muted" style="margin:0 0 8px">通常は製造。技術部門・品証・営業の場合もあります。変更すると確認印はリセットされます。</p>${stampHtml(c,s)}`;
  case"bei":return`<textarea data-rep="bei" ${dis} placeholder="連絡内容 (メール件名・日付など)">${esc(d.text||"")}</textarea>
    <div class="actions" style="margin-top:6px"><button class="primary small" data-save="bei" ${dis}>連絡済にする</button></div>${stamped(d)}`;
  case"schedule":return`<div class="inline"><div><label>現納期</label><input disabled value="${esc(c.dueDate||"")}"></div><div><label>調整後納期</label><input type="date" data-nd ${dis} value="${esc(d.newDue||"")}"></div></div>
@@ -267,7 +273,7 @@ function renderDetail(c){
    <div class="mini"><small>対応待ち</small><b>${waitingDepts(c).join("、")||"—"}</b></div>
   </div>
   <div class="flow">${STEPS.map(s=>{const st=status(c,s),mine=st==="todo"&&pendingOwners(c,s).includes(me.dept);
-   return`<div class="step ${st} ${mine?"mine":""}"><div><h3>${s.name}</h3><div class="muted">${s.detail}</div><div class="who" style="margin-top:6px">誰が: ${s.owners.join("、")}</div><div class="who">アウトプット: ${s.out}</div></div>
+   return`<div class="step ${st} ${mine?"mine":""}"><div><h3>${s.name}</h3><div class="muted">${s.detail}</div><div class="who" style="margin-top:6px">誰が: ${whoText(c,s)}</div><div class="who">アウトプット: ${s.out}</div></div>
    <div>${body(c,s)}</div>
    <div class="status">${{done:`<span class="badge b-done">完了</span>`,todo:`<span class="badge b-todo">対応待ち</span>`,wait:`<span class="badge b-wait">前工程待ち</span>`,na:`<span class="badge b-na">対象外 (${c.steps.work.value})</span>`}[st]}
    ${st==="wait"?`<div class="muted" style="margin-top:6px">${s.after.filter(a=>status(c,STEP[a])!=="done").map(a=>STEP[a].name).join("、")} の完了待ち</div>`:""}
@@ -305,7 +311,11 @@ function bindDetail(c){
   c.steps[sid]={value:v,note,...actor()};commit(c,`${STEP[sid].name}: ${sid==="parts"?"在庫"+v:"国内作業 "+v}${note?" ("+note+")":""}`);
  });
  V.querySelectorAll("[data-note]").forEach(t=>t.onchange=()=>{c.steps[t.dataset.note].note=t.value.trim();save()});
- const wd=q("[data-wd]");if(wd)wd.onchange=()=>{c.steps.workDept.dept=wd.value.trim();c.steps.workDept.stamps={};commit(c,`作業部署: ${wd.value.trim()||"未定"} — 確認印リセット`)};
+ V.querySelectorAll("[data-wd]").forEach(i=>i.onchange=()=>{
+  const w=c.steps.workDept,k=i.dataset.wd,had=Object.keys(w.stamps||{}).length;
+  if(had&&!confirm("作業部署・作業担当者を変更すると確認印がリセットされます。よろしいですか？")){i.value=w[k]||"";return}
+  w[k]=i.value.trim();w.stamps={};commit(c,`${k==="dept"?"作業部署":"作業担当者"}: ${w[k]||"未定"}${had?" — 確認印リセット":""}`);
+ });
  V.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{
   if(!needMe())return;
   const sid=b.dataset.save,d=c.steps[sid];
@@ -318,7 +328,7 @@ function bindDetail(c){
    c.steps.arrival={...a,...actor()};return commit(c,`入荷情報: INV ${a.invoice} / 数量 ${a.qty} / ETA ${a.eta}${reset?" — 確認印リセット":""}`);
   }
   if(sid==="schedule"){const nd=q("[data-nd]").value;if(!nd)return alert("調整後納期を入力してください。");c.steps.schedule={newDue:nd,text:q('[data-rep="schedule"]').value.trim(),...actor()};return commit(c,`納期調整: ${nd}`)}
-  if(sid==="start"||sid==="finish"){c.steps[sid]=actor();return commit(c,STEP[sid].name)}
+  if(sid==="start"||sid==="finish"){const w=c.steps.workDept;if(w.dept&&me.dept!==w.dept&&!confirm(`作業担当は ${w.dept}${w.worker?" "+w.worker:""} です。${me.dept} として${STEP[sid].name}を記録しますか？`))return;c.steps[sid]=actor();return commit(c,STEP[sid].name)}
   const t=q(`[data-rep="${sid}"]`).value.trim();
   if(!t&&sid!=="bei")return alert("内容を入力してください。");
   c.steps[sid]={text:t,...actor()};commit(c,`${STEP[sid].name}: ${t||"連絡済"}`);
@@ -342,9 +352,9 @@ $("importFile").onchange=async e=>{
  }catch(err){alert("読み込めませんでした: "+err.message)}
 };
 $("exportCsv").onclick=()=>{
- const cols=["ハーネス品番","顧客","数量","未完箇所","部品番号","顧客納期","調整後納期","国内作業","作業部署","在庫","インボイス番号","入荷数量","ETA","作業着手","作業完了","状態","対応待ち部署","登録日"];
+ const cols=["ハーネス品番","顧客","数量","未完箇所","部品番号","顧客納期","調整後納期","国内作業","作業部署","作業担当者","在庫","インボイス番号","入荷数量","ETA","作業着手","作業完了","状態","対応待ち部署","登録日"];
  const d=x=>x?x.slice(0,10):"";
- const rows=cases.map(c=>{const s=c.steps;return[c.partNo,c.customer,c.qty,c.area,c.parts,c.dueDate,s.schedule.newDue,s.work.value,s.workDept.dept,s.parts.value,s.arrival.invoice,s.arrival.qty,s.arrival.eta,d(s.start.at),d(s.finish.at),isComplete(c)?"完了":(currentStep(c)?.name||""),waitingDepts(c).join(" / "),d(c.createdAt)]});
+ const rows=cases.map(c=>{const s=c.steps;return[c.partNo,c.customer,c.qty,c.area,c.parts,c.dueDate,s.schedule.newDue,s.work.value,s.workDept.dept,s.workDept.worker,s.parts.value,s.arrival.invoice,s.arrival.qty,s.arrival.eta,d(s.start.at),d(s.finish.at),isComplete(c)?"完了":(currentStep(c)?.name||""),waitingDepts(c).join(" / "),d(c.createdAt)]});
  const csv=[cols,...rows].map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
  download(`incomplete-cases-${today()}.csv`,"﻿"+csv,"text/csv");
 };
