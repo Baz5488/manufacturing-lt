@@ -34,6 +34,8 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
 .inline{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .log{max-height:260px;overflow:auto;font-size:12px}.log div{padding:5px 0;border-bottom:1px dashed var(--line)}
 .head-info{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}.mini{background:#f8fafc;border-radius:9px;padding:9px}.mini small{display:block;color:var(--muted)}.mini b{display:block;margin-top:3px;word-break:break-all}
+.sync{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-radius:12px;margin-bottom:14px;font-weight:600}.sync.on{background:var(--greenbg);color:var(--green)}.sync.off{background:#e2e8f0;color:#334155}.sync.err{background:var(--amberbg);color:var(--amber)}.sync .grow{font-weight:400}
+body.ro .edit-only{display:none!important}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.filters input,.filters select{width:auto;min-width:160px}
 @media(max-width:850px){.kpis{grid-template-columns:1fr 1fr}.form-grid,.head-info{grid-template-columns:1fr 1fr}.flow>.step{grid-template-columns:1fr}.step .status{text-align:left}.branch,.inline{grid-template-columns:1fr}.wrap{padding:10px}.tbl{overflow:auto}}
 </style>
@@ -48,7 +50,15 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
  </div>
 </header>
 
+<div class="sync off" id="syncBar"></div>
 <div id="listView">
+ <div class="card" id="syncCard" style="display:none">
+  <h2>Tracker 連携</h2>
+  <p class="muted">Tracker 管理者から受け取った <b>編集リンク</b> または <b>閲覧リンク</b> を開くと自動で接続されます。ここに貼り付けても接続できます。接続すると全部署・工場側が同じ案件を見られます (Tracker の INCOMPLETE_CASES タブに保存)。</p>
+  <div class="actions"><input id="syncLink" class="grow" style="width:auto" placeholder="https://…incomplete.html?tracker=…&key=…"><button class="primary" id="syncConnect">接続</button><button class="secondary" id="syncOff">切断</button></div>
+  <div class="actions" id="uploadRow" style="margin-top:10px;display:none"><span class="muted grow">このブラウザだけに保存されている案件が <b id="localCount">0</b> 件あります。</span><button class="secondary" id="uploadLocal">Tracker へアップロード</button></div>
+  <div id="syncMsg" class="muted" style="margin-top:8px"></div>
+ </div>
  <div class="kpis">
   <div class="kpi"><small>進行中</small><b id="kOpen">0</b></div>
   <div class="kpi"><small>自部署の対応待ち</small><b id="kMine">0</b></div>
@@ -64,9 +74,10 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
 
  <div class="card">
   <div class="actions" style="margin-bottom:12px"><h2 style="margin:0" class="grow">案件一覧</h2>
-   <button class="primary" id="newBtn">＋ 新規登録</button>
+   <button class="secondary" id="syncToggle">Tracker 連携</button>
+   <button class="primary edit-only" id="newBtn">＋ 新規登録</button>
    <button class="secondary" id="exportJson">JSON 出力</button>
-   <button class="secondary" id="importBtn">JSON 読込</button><input type="file" id="importFile" accept=".json" style="display:none">
+   <button class="secondary edit-only" id="importBtn">JSON 読込</button><input type="file" id="importFile" accept=".json" style="display:none">
    <button class="secondary" id="exportCsv">CSV 出力</button>
   </div>
   <form id="newForm" style="display:none;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -90,7 +101,7 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">PROTO CONTROL · 未完製品入荷フロー v3.14 • データはこのブラウザ (localStorage) に保存されます。共有は JSON 出力 / 読込で行ってください。</div>
+<div class="footer">PROTO CONTROL · 未完製品入荷フロー v3.15 • Tracker 連携中は Tracker に、未接続のときはこのブラウザに保存されます。</div>
 </div>
 
 <script>
@@ -104,8 +115,13 @@ const nowIso=()=>new Date().toISOString();
 const fmt=iso=>iso?new Date(iso).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
 const fmtD=d=>d?d.replace(/-/g,"/"):"—";
 
-function load(){try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(cases))}catch(e){alert("保存できませんでした: "+e.message)}}
+/* Storage: without a Tracker link the cases live in this browser (KEY). With one, the Tracker holds them and
+   CACHE_KEY keeps an offline copy plus the edits not sent yet (_dirty). */
+const SYNC_KEY="mfg-incomplete-tracker",CACHE_KEY="mfg-incomplete-cache";
+let sync=(()=>{try{return JSON.parse(localStorage.getItem(SYNC_KEY))||null}catch{return null}})();
+const online=()=>!!(sync&&sync.url&&sync.key);
+function load(){try{return JSON.parse(localStorage.getItem(online()?CACHE_KEY:KEY))||[]}catch{return[]}}
+function save(){try{localStorage.setItem(online()?CACHE_KEY:KEY,JSON.stringify(cases))}catch(e){alert("保存できませんでした: "+e.message)}}
 let cases=load();
 let me=(()=>{try{return JSON.parse(localStorage.getItem(ME_KEY))||{}}catch{return{}}})();
 if(me.dept&&!DEPTS.includes(me.dept))me.dept="";
@@ -200,7 +216,7 @@ function renderList(){
   return true;
  }).sort((a,b)=>(flags(b).length-flags(a).length)||String(a.steps.arrival.eta||a.dueDate||"9").localeCompare(String(b.steps.arrival.eta||b.dueDate||"9"))||b.createdAt.localeCompare(a.createdAt));
 
- if(!rows.length){$("caseTable").innerHTML=`<div class="empty">${cases.length?"該当する案件はありません。":"案件はまだありません。「＋ 新規登録」から登録してください。"}<br><button class="secondary small" id="sampleBtn" style="margin-top:10px;${cases.length?"display:none":""}">サンプル案件を追加</button></div>`;const sb=$("sampleBtn");if(sb)sb.onclick=addSample;return}
+ if(!rows.length){$("caseTable").innerHTML=`<div class="empty">${cases.length?"該当する案件はありません。":"案件はまだありません。「＋ 新規登録」から登録してください。"}<br><button id="sampleBtn" class="secondary small edit-only" style="margin-top:10px;${cases.length?"display:none":""}">サンプル案件を追加</button></div>`;const sb=$("sampleBtn");if(sb)sb.onclick=addSample;return}
  $("caseTable").innerHTML=`<table><thead><tr><th>ハーネス品番</th><th>顧客</th><th>数量</th><th>未完箇所</th><th>進捗</th><th>現在のステップ</th><th>対応待ち部署</th><th>ETA</th><th>納期</th></tr></thead><tbody>${rows.map(c=>{
   const cur=currentStep(c),done=isComplete(c),wd=waitingDepts(c),fl=flags(c);
   const pipe=STEPS.filter(s=>status(c,s)!=="na").map(s=>`<i class="${status(c,s)}" title="${s.name}"></i>`).join("");
@@ -218,12 +234,12 @@ $("cancelNew").onclick=()=>{$("newForm").reset();$("newForm").style.display="non
 $("newForm").onsubmit=e=>{
  e.preventDefault();const f=e.target;
  const c={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:nowIso(),partNo:f.partNo.value.trim(),customer:f.customer.value.trim(),qty:f.qty.value,dueDate:f.dueDate.value,area:f.area.value.trim(),parts:f.parts.value.trim(),steps:blank(),log:[]};
- log(c,"案件を登録");cases.unshift(c);save();f.reset();f.style.display="none";location.hash="case="+c.id;
+ log(c,"案件を登録");cases.unshift(c);save();push(c);f.reset();f.style.display="none";location.hash="case="+c.id;
 };
 function addSample(){
  const c={id:"s"+Date.now().toString(36),createdAt:nowIso(),partNo:"YA00102345-004",customer:"Sample Co.",qty:"20",dueDate:new Date(Date.now()+21*864e5).toISOString().slice(0,10),area:"CN3 端子未挿入",parts:"7283-1020 ×2",steps:blank(),log:[]};
  c.steps.info.stamps={"生産管理":{by:"サンプル",dept:"生産管理",at:nowIso()},"営業":{by:"サンプル",dept:"営業",at:nowIso()}};
- log(c,"サンプル案件を登録");cases.unshift(c);save();renderList();
+ log(c,"サンプル案件を登録");cases.unshift(c);save();push(c);renderList();
 }
 
 /* ---- detail view ---- */
@@ -264,7 +280,7 @@ function body(c,s){
 function renderDetail(c){
  const due=c.steps.schedule.newDue||c.dueDate,fl=flags(c);
  $("detailView").innerHTML=`<div class="card">
-  <div class="actions" style="margin-bottom:14px"><button class="secondary" id="back">← 一覧へ</button><h2 class="grow" style="margin:0">${esc(c.partNo)} ${isComplete(c)?`<span class="badge b-done">完了</span>`:""}${fl.map(x=>`<span class="badge b-bad">${x}</span>`).join("")}</h2><button class="danger small" id="del">削除</button></div>
+  <div class="actions" style="margin-bottom:14px"><button class="secondary" id="back">← 一覧へ</button><h2 class="grow" style="margin:0">${esc(c.partNo)} ${isComplete(c)?`<span class="badge b-done">完了</span>`:""}${fl.map(x=>`<span class="badge b-bad">${x}</span>`).join("")}</h2><button class="danger small edit-only" id="del">削除</button></div>
   <div class="head-info">
    <div class="mini"><small>顧客</small><b>${esc(c.customer||"—")}</b></div>
    <div class="mini"><small>数量</small><b>${esc(c.qty)}</b></div>
@@ -284,12 +300,13 @@ function renderDetail(c){
   <div class="log">${(c.log||[]).map(l=>`<div><span class="muted">${fmt(l.at)}</span> <b>${esc(l.dept)}${l.name?" "+esc(l.name):""}</b> — ${esc(l.text)}</div>`).join("")||`<div class="muted">履歴なし</div>`}</div>
  </div>`;
  bindDetail(c);
+ if(role!=="edit")$("detailView").querySelectorAll("input,textarea,select,button").forEach(x=>{if(x.id!=="back")x.disabled=true});
 }
-function commit(c,text){if(text)log(c,text);save();renderDetail(c)}
+function commit(c,text){if(text)log(c,text);save();push(c);renderDetail(c)}
 function bindDetail(c){
  const V=$("detailView"),q=s=>V.querySelector(s);
  $("back").onclick=()=>{location.hash=""};
- $("del").onclick=()=>{if(confirm(`${c.partNo} を削除しますか？`)){cases=cases.filter(x=>x!==c);save();location.hash=""}};
+ $("del").onclick=()=>{if(confirm(`${c.partNo} を削除しますか？`)){cases=cases.filter(x=>x!==c);save();remove(c);location.hash=""}};
  $("cmtBtn").onclick=()=>{const t=$("cmt").value.trim();if(t)commit(c,"コメント: "+t)};
  V.querySelectorAll("[data-f]").forEach(i=>i.onchange=()=>{
   const k=i.dataset.f,had=Object.keys(c.steps.info.stamps).length;
@@ -310,7 +327,7 @@ function bindDetail(c){
   if(sid==="work"&&d.value&&!confirm(`国内作業を「${d.value}」→「${v}」に変更しますか？以降のフローが切り替わります。`))return;
   c.steps[sid]={value:v,note,...actor()};commit(c,`${STEP[sid].name}: ${sid==="parts"?"在庫"+v:"国内作業 "+v}${note?" ("+note+")":""}`);
  });
- V.querySelectorAll("[data-note]").forEach(t=>t.onchange=()=>{c.steps[t.dataset.note].note=t.value.trim();save()});
+ V.querySelectorAll("[data-note]").forEach(t=>t.onchange=()=>{c.steps[t.dataset.note].note=t.value.trim();save();push(c)});
  V.querySelectorAll("[data-wd]").forEach(i=>i.onchange=()=>{
   const w=c.steps.workDept,k=i.dataset.wd,had=Object.keys(w.stamps||{}).length;
   if(had&&!confirm("作業部署・作業担当者を変更すると確認印がリセットされます。よろしいですか？")){i.value=w[k]||"";return}
@@ -348,7 +365,7 @@ $("importFile").onchange=async e=>{
   let added=0,updated=0;
   list.forEach(n=>{if(!n.id||!n.steps)return;n.steps={...blank(),...n.steps};const i=cases.findIndex(c=>c.id===n.id);
    if(i<0){cases.push(n);added++}else if((n.log?.[0]?.at||"")>(cases[i].log?.[0]?.at||"")){cases[i]=n;updated++}});
-  save();route();alert(`読込完了: 追加 ${added} 件 / 更新 ${updated} 件 (同じ案件は履歴が新しい方を採用)`);
+  save();if(online())upload(list.filter(n=>n.id&&n.steps));route();alert(`読込完了: 追加 ${added} 件 / 更新 ${updated} 件 (同じ案件は履歴が新しい方を採用)`);
  }catch(err){alert("読み込めませんでした: "+err.message)}
 };
 $("exportCsv").onclick=()=>{
@@ -359,15 +376,126 @@ $("exportCsv").onclick=()=>{
  download(`incomplete-cases-${today()}.csv`,"﻿"+csv,"text/csv");
 };
 
+/* ---- Tracker sync (tracker/IncompleteCases.gs) ----
+   Each save sends the whole case with the rev it was based on; if someone saved first the Tracker sends theirs back. */
+let role="edit",lastSync=null,syncErr="",pulling=false;
+const inflight={},again={};
+const summary=c=>({status:isComplete(c)?"完了":"進行中",current:isComplete(c)?"":(currentStep(c)?.name||""),waiting:waitingDepts(c).join(" / ")});
+function api(body){return fetch(sync.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,key:sync.key})})
+ .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}
+function clean(c){const{_dirty,...x}=c;return x}
+function push(c){
+ if(!online()||role!=="edit")return;
+ c._dirty=true;save();renderSync();
+ if(inflight[c.id]){again[c.id]=true;return}  // one save per case at a time, so the rev stays in order
+ inflight[c.id]=true;
+ api({api:"incomplete.save",case:clean(c),baseRev:c.rev||0,summary:summary(c)}).then(d=>{
+  if(d.ok){c.rev=d.rev;if(!again[c.id])delete c._dirty;save();syncErr="";lastSync=new Date();return}
+  delete again[c.id];
+  if(d.conflict){replaceCase(d.case);alert(`${c.partNo}: 他の人が先に更新しました。最新の内容を表示します。もう一度操作してください。`);return}
+  if(d.deleted){cases=cases.filter(x=>x.id!==c.id);save();route();alert(`${c.partNo} は Tracker で削除されています。`);return}
+  throw new Error(d.error||"Tracker から応答がありません");
+ }).catch(e=>{syncErr=e.message}).finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
+}
+function remove(c){if(online()&&c.rev)api({api:"incomplete.delete",id:c.id}).catch(e=>alert("Tracker から削除できませんでした: "+e.message))}
+function upload(list){
+ return api({api:"incomplete.import",cases:list.map(c=>({c:clean(c),summary:summary(c)}))}).then(d=>{if(!d.ok)throw new Error(d.error);return d.added}).finally(pull);
+}
+function replaceCase(n){const i=cases.findIndex(x=>x.id===n.id);if(i<0)cases.unshift(n);else cases[i]=n;save();refresh()}
+function getCases(){
+ const u=sync.url+"?api=incomplete&key="+encodeURIComponent(sync.key);
+ return fetch(u,{redirect:"follow"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).catch(()=>jsonp(u+"&callback="));
+}
+function jsonp(url){return new Promise((resolve,reject)=>{
+ const cb="incCases_"+Date.now(),sc=document.createElement("script");let done=false;
+ const end=()=>{done=true;delete window[cb];sc.remove()};
+ window[cb]=d=>{end();resolve(d)};
+ sc.onerror=()=>{if(!done){end();reject(new Error("Tracker に接続できません。リンクと Web アプリの公開設定を確認してください。"))}};
+ setTimeout(()=>{if(!done){end();reject(new Error("Tracker が時間内に応答しませんでした。"))}},15000);
+ sc.src=url+cb;document.head.appendChild(sc);
+})}
+// Someone typing in a form: leave the cases as they are until the next pull, so their edit is not lost.
+function editing(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest("#detailView,#newForm")}
+function pull(){
+ if(!online()||pulling||editing())return Promise.resolve();
+ pulling=true;
+ return getCases().then(d=>{
+  if(!d||!d.ok)throw new Error(d&&d.error||"Tracker から応答がありません");
+  role=d.role;document.body.classList.toggle("ro",role!=="edit");
+  const map=new Map(d.cases.map(c=>[c.id,c]));
+  const dirty=cases.filter(c=>c._dirty);
+  dirty.forEach(c=>map.set(c.id,c));  // edits not sent yet stay; their save reports a conflict if someone else saved first
+  cases=[...map.values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  save();lastSync=new Date();syncErr="";
+  dirty.forEach(c=>{if(!inflight[c.id])push(c)});
+  refresh();
+ }).catch(e=>{syncErr=e.message}).finally(()=>{pulling=false;renderSync()});
+}
+function renderSync(){
+ const bar=$("syncBar"),pending=cases.filter(c=>c._dirty).length;
+ if(!online()){bar.className="sync off";bar.innerHTML=`<span>💾 このブラウザのみに保存</span><span class="grow">Tracker 未接続 — 他の部署・工場からは見えません。</span><button class="secondary small" data-sync-open>Tracker に接続</button>`}
+ else if(syncErr){bar.className="sync err";bar.innerHTML=`<span>⚠ Tracker に接続できません</span><span class="grow">${esc(syncErr)}${pending?` · 未送信 ${pending} 件 (接続が戻ると送信します)`:""}</span><button class="secondary small" data-sync-retry>再接続</button>`}
+ else{bar.className="sync on";bar.innerHTML=`<span>🔗 Tracker 連携中 · ${role==="edit"?"編集":"閲覧のみ"}</span><span class="grow">${lastSync?"最終同期 "+lastSync.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}):"同期中…"}${pending?` · 送信中 ${pending} 件`:""}</span><button class="secondary small" data-sync-retry>更新</button>`}
+ const o=bar.querySelector("[data-sync-open]");if(o)o.onclick=openSyncCard;
+ const t=bar.querySelector("[data-sync-retry]");if(t)t.onclick=pull;
+}
+function localCases(){try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]}}
+function openSyncCard(){location.hash="";$("syncCard").style.display="block";$("syncLink").value="";renderSyncCard();$("syncCard").scrollIntoView({behavior:"smooth"})}
+function renderSyncCard(){
+ const n=localCases().length;
+ $("uploadRow").style.display=online()&&n&&role==="edit"?"flex":"none";$("localCount").textContent=n;
+ $("syncOff").style.display=online()?"":"none";
+ $("syncMsg").innerHTML=online()?`接続先: <code>${esc(sync.url)}</code>`:"";
+}
+function parseLink(v){
+ try{
+  const u=new URL(String(v).trim()),t=u.searchParams.get("tracker"),k=u.searchParams.get("key");
+  const url=t?t.split("?")[0]:/^script\.google(usercontent)?\.com$/.test(u.host)?u.origin+u.pathname:"";
+  if(url&&k)return{url,key:k.toLowerCase()};
+ }catch{}
+ return null;
+}
+function connect(v){
+ const l=parseLink(v);
+ if(!l||!/^[0-9a-f]{32}$/.test(l.key)||!/^https:\/\/script\.google\.com\/.+\/exec$/.test(l.url)){
+  if(l&&/\/dev$/.test(l.url))return alert("/dev のリンクは Apps Script エディタ内でしか動きません。/exec のリンクを使ってください。");
+  return alert("Tracker 管理者から受け取ったリンク (…?tracker=…&key=…) を貼り付けてください。");
+ }
+ sync=l;try{localStorage.setItem(SYNC_KEY,JSON.stringify(sync))}catch{}
+ cases=load();role="edit";lastSync=null;syncErr="";renderSync();route();
+ return pull().then(()=>{renderSyncCard();if(!syncErr&&localCases().length&&role==="edit")openSyncCard()});
+}
+$("syncToggle").onclick=()=>{const v=$("syncCard").style.display==="none";$("syncCard").style.display=v?"block":"none";if(v)renderSyncCard()};
+$("syncConnect").onclick=()=>connect($("syncLink").value);
+$("syncOff").onclick=()=>{
+ if(!confirm("Tracker との接続を切りますか？ (Tracker のデータは消えません)"))return;
+ if(cases.some(c=>c._dirty)&&!confirm("未送信の変更があります。切断すると送信されません。よろしいですか？"))return;
+ sync=null;try{localStorage.removeItem(SYNC_KEY);localStorage.removeItem(CACHE_KEY)}catch{}
+ role="edit";document.body.classList.remove("ro");cases=load();syncErr="";renderSync();renderSyncCard();route();
+};
+$("uploadLocal").onclick=()=>{
+ const list=localCases();
+ upload(list).then(n=>{
+  if(confirm(`${n} 件を Tracker に追加しました (同じ案件がすでにあるものは除外)。\nこのブラウザだけの案件データを削除しますか？`))try{localStorage.removeItem(KEY)}catch{}
+  renderSyncCard();
+ }).catch(e=>alert("アップロードできませんでした: "+e.message));
+};
+
 /* ---- routing ---- */
 function route(){
  const m=location.hash.match(/case=([\w-]+)/),c=m&&find(m[1]);
  $("listView").style.display=c?"none":"block";$("detailView").style.display=c?"block":"none";
  if(c){renderDetail(c);window.scrollTo(0,0)}else renderList();
 }
+// Re-render after new data without moving the page.
+function refresh(){const m=location.hash.match(/case=([\w-]+)/);if(m&&find(m[1]))renderDetail(find(m[1]));else if(m)route();else renderList()}
 window.addEventListener("hashchange",route);
-window.addEventListener("storage",e=>{if(e.key===KEY){cases=load();route()}});
-route();
+window.addEventListener("storage",e=>{if(e.key===(online()?CACHE_KEY:KEY)){cases=load();route()}});
+// A shared link (?tracker=…&key=…) connects this browser; the key is then removed from the address bar.
+if(parseLink(location.href)){const v=location.href;history.replaceState(null,"",location.pathname+location.hash);connect(v)}
+renderSync();route();pull();
+setInterval(()=>{if(document.visibilityState==="visible")pull()},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull()});
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{}));
 </script>
 </body>

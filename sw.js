@@ -1,4 +1,4 @@
-const CACHE="mfg-lt-v3-14";
+const CACHE="mfg-lt-v3-15";
 const ASSETS=["./","./index.html","./incomplete.html","./manifest.json","./icon.svg","./lt-core.js?v=3.14","./vendor/xlsx.full.min.js"];
 
 self.addEventListener("install", event => {

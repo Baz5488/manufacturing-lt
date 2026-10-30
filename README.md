@@ -216,3 +216,30 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - Choose **自分の部署** and **担当者名** at the top: stamps and reports record who and when, and every action goes to the case history. Changing 品番情報 or 入荷情報 resets the stamps that confirmed it.
 - Data is stored in this browser (localStorage). Share with **JSON 出力 / JSON 読込** (merge by case, newer history wins); **CSV 出力** for Excel.
 - Service worker: cache `mfg-lt-v3-14`; a page is now cached under its own URL (before, every page was cached as `index.html`).
+
+## V3.15 update — 未完製品 cases shared through the Tracker
+- `incomplete.html` can keep its cases in the PROTO CONTROL Tracker, so every department and the factory side see the same cases. They are stored in a new Tracker tab **INCOMPLETE_CASES** (one row per case with readable columns — 品番, 状態, 現在のステップ, 対応待ち部署, ETA… — and the full case as JSON in a hidden last column).
+- Two links, separate from the Tracker owner key:
+  - **編集リンク** — departments and 作業担当: register cases, stamp, report.
+  - **閲覧リンク** — read only (e.g. the factory side): sees everything, cannot change anything.
+- Opening a link connects that browser (the key is then removed from the address bar). The bar at the top shows the connection: 🔗 連携中 (編集 / 閲覧のみ), ⚠ cannot connect (changes are kept and sent when the Tracker answers again), or 💾 this browser only.
+- The page re-reads the Tracker every minute and when the tab is opened again. If two people change the same case at the same time, the second one is told and shown the latest version to redo their action, so nobody's stamp is overwritten.
+- Cases saved before in a browser: **Tracker 連携 → Tracker へアップロード**.
+
+### Setup (Tracker owner, once)
+1. Open the Tracker spreadsheet → **Extensions → Apps Script**.
+2. **File → New → Script**, name it `IncompleteCases`, and paste [`tracker/IncompleteCases.gs`](tracker/IncompleteCases.gs).
+3. In `Code.gs`, add one line at the start of `doGet(e)` and one at the start of `doPost(e)`:
+   ```js
+   function doGet(e) {
+     var inc = incompleteGet_(e); if (inc) return inc;
+     // … existing code …
+   }
+   function doPost(e) {
+     var inc = incompletePost_(e); if (inc) return inc;
+     // … existing code …
+   }
+   ```
+4. **Deploy → Manage deployments → Edit → Version: New version → Deploy** (same `/exec` URL as now).
+5. Select `createIncompleteLinks` and **Run**. The log shows the 編集リンク and 閲覧リンク — share them. If the Planner is published at another address, change `INC_PAGE_URL` at the top of the file first.
+6. To stop old links (e.g. someone left): run `resetIncompleteKeys` and share the new links.
