@@ -19,6 +19,9 @@
 var INC_SHEET = 'INCOMPLETE_CASES';
 // The published incomplete.html page; used only to build the links logged by createIncompleteLinks().
 var INC_PAGE_URL = 'https://baz5488.github.io/manufacturing-lt/incomplete.html';
+// The Tracker web app URL ending in /exec (Deploy → Manage deployments → Web app URL — the same link as in the
+// Planner's Master Data → Production Capacity). Needed because a run from the editor only knows the /dev test URL.
+var INC_EXEC_URL = '';
 var INC_HEAD = ['id', 'ハーネス品番', '顧客', '数量', '未完箇所', '顧客納期', '調整後納期', '国内作業', '作業部署', '作業担当者',
   'インボイス番号', 'ETA', '状態', '現在のステップ', '対応待ち部署', '登録日時', '更新日時', '更新者', 'rev', 'json'];
 var INC_JSON_COL = INC_HEAD.length;      // 1-based column of the JSON
@@ -30,12 +33,16 @@ function createIncompleteLinks() {
   var p = PropertiesService.getScriptProperties();
   if (!p.getProperty('INC_EDIT_KEY')) p.setProperty('INC_EDIT_KEY', incNewKey_());
   if (!p.getProperty('INC_VIEW_KEY')) p.setProperty('INC_VIEW_KEY', incNewKey_());
-  var exec = ScriptApp.getService().getUrl();
+  var exec = (INC_EXEC_URL || ScriptApp.getService().getUrl() || '').split('?')[0];
+  if (!/\/exec$/.test(exec)) {
+    Logger.log('⚠ Paste the Tracker web app URL ending in /exec into INC_EXEC_URL at the top of this file, then run createIncompleteLinks again.\n' +
+      '(Deploy → Manage deployments → Web app URL. The URL known to the editor is ' + exec + ', a test URL other people cannot open.)');
+    return;
+  }
   incSheet_();
   var link = function (key) { return INC_PAGE_URL + '?tracker=' + encodeURIComponent(exec) + '&key=' + key; };
   Logger.log('編集リンク (各部署・作業担当):\n' + link(p.getProperty('INC_EDIT_KEY')));
   Logger.log('閲覧リンク (見るだけ):\n' + link(p.getProperty('INC_VIEW_KEY')));
-  if (/\/dev$/.test(exec)) Logger.log('⚠ The web app URL above ends in /dev. Deploy the web app and use its /exec URL.');
 }
 
 /** Run to stop old links working (e.g. someone left). Then run createIncompleteLinks() and share the new links. */
