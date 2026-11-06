@@ -246,6 +246,6 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 7. To stop old links (e.g. someone left): run `resetIncompleteKeys` and share the new links.
 
 ## V3.16 update — 未完製品入荷フロー moved out
-- The 未完製品入荷フロー page is now its own app in **[Baz5488/incomplete-case](https://github.com/Baz5488/incomplete-case)** (cases in a SharePoint Excel workbook, Microsoft sign-in). `incomplete.html`, its header link and `tracker/IncompleteCases.gs` are removed from the Planner; the V3.14 / V3.15 notes above describe the old page.
-- Before this is published, move the cases: open the old page once so it syncs, then in the new app **データ → Excel へアップロード** (see its README).
+- The 未完製品入荷フロー page is now its own app in **[Baz5488/incomplete-case](https://github.com/Baz5488/incomplete-case)** (cases in its own Google Sheet, separate from the Tracker). `incomplete.html`, its header link and `tracker/IncompleteCases.gs` are removed from the Planner; the V3.14 / V3.15 notes above describe the old page.
+- Before this is published, move the cases: open the old page once so it syncs, then copy the INCOMPLETE_CASES tab to the new spreadsheet (see its README).
 - Then clean up the Tracker: delete the `IncompleteCases` script file, remove the `incompleteGet_` / `incompletePost_` lines from `doGet` / `doPost` in `Code.gs`, deploy a new version, and delete the INCOMPLETE_CASES tab.
