@@ -244,3 +244,8 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 5. At the top of `IncompleteCases`, paste the Tracker web app URL ending in `/exec` into `INC_EXEC_URL` (Deploy → Manage deployments → Web app URL; the same link as in the Planner's Master Data → Production Capacity). A run from the editor only knows the `/dev` test URL, which other people cannot open. If the Planner is published at another address, also change `INC_PAGE_URL`.
 6. Select `createIncompleteLinks` and **Run**. The log shows the 編集リンク and 閲覧リンク — share them. The keys stay the same when you run it again.
 7. To stop old links (e.g. someone left): run `resetIncompleteKeys` and share the new links.
+
+## V3.16 update — 未完製品入荷フロー moved out
+- The 未完製品入荷フロー page is now its own app in **[Baz5488/incomplete-case](https://github.com/Baz5488/incomplete-case)** (cases in a SharePoint Excel workbook, Microsoft sign-in). `incomplete.html`, its header link and `tracker/IncompleteCases.gs` are removed from the Planner; the V3.14 / V3.15 notes above describe the old page.
+- Before this is published, move the cases: open the old page once so it syncs, then in the new app **データ → Excel へアップロード** (see its README).
+- Then clean up the Tracker: delete the `IncompleteCases` script file, remove the `incompleteGet_` / `incompletePost_` lines from `doGet` / `doPost` in `Code.gs`, deploy a new version, and delete the INCOMPLETE_CASES tab.
