@@ -244,3 +244,12 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 5. At the top of `IncompleteCases`, paste the Tracker web app URL ending in `/exec` into `INC_EXEC_URL` (Deploy → Manage deployments → Web app URL; the same link as in the Planner's Master Data → Production Capacity). A run from the editor only knows the `/dev` test URL, which other people cannot open. If the Planner is published at another address, also change `INC_PAGE_URL`.
 6. Select `createIncompleteLinks` and **Run**. The log shows the 編集リンク and 閲覧リンク — share them. The keys stay the same when you run it again.
 7. To stop old links (e.g. someone left): run `resetIncompleteKeys` and share the new links.
+
+## V3.16 update — past lead time beside the formula
+- After a calculation, a **📊 Past orders like this** box shows what similar finished orders actually took:
+  - **Median actual LT** and **Fastest quarter** (25th percentile), next to the **Formula LT**.
+  - **"<customer> usually asks for"**: the median of the customer's requested lead time (due date − start).
+  - A one-line verdict: how many days longer or shorter the formula is than past orders, and whether the customer's usual request is below even the fastest quarter.
+- Actual LT = the first day the ASSY appeared in PRIORITES BARU (its ORIGINAL row in ETD_HISTORY) → DATE TO FG, one record per lot (its last delivery), lots finished in the last 12 months. Lots already in the sheet when ETD tracking started are left out.
+- Similar orders: the closest match with at least 5 orders, relaxed step by step — customer · WP line · CCT ½–2× · qty ½–2×, then without qty, without CCT, without customer, WP line only, all orders. The box says which match was used.
+- The data comes from the Tracker capacity feed (`leadTimes`); customer names are sent only with the booking key. Needs the updated Tracker `Code.gs`. The formula LT, ETD and capacity check are unchanged.

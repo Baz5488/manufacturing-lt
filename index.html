@@ -101,6 +101,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <tr><th>Total Manufacturing LT</th><th class="right" id="sumLT">—</th></tr>
 </table>
 <div id="dateBox" class="notice good" style="display:none;text-align:center"><div id="etdLabel">Estimated ETD</div><strong id="etd" style="font-size:22px"></strong></div>
+<div id="pastBox"></div>
 <div id="capacityBox"></div>
 <div id="bookingNotice"></div>
 <div id="resultNotice"></div>
@@ -200,10 +201,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.15 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.16 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.14"></script>
+<script src="lt-core.js?v=3.16"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -282,7 +283,7 @@ function readInputs(){
   specials:[...document.querySelectorAll("#specials input:checked")].map(x=>master.specials[Number(x.dataset.i)][0]),repeat:$("repeatOrder").checked};
 }
 function calculate(){
- $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("bookingNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";capacityRun++;
+ $("inputNotice").innerHTML="";$("resultNotice").innerHTML="";$("bookingNotice").innerHTML="";$('dateBox').style.display="none";$("capacityBox").innerHTML="";$("pastBox").innerHTML="";capacityRun++;
  const backward=$("planMode").value==="backward",today=localISODate(new Date()),inputs=readInputs();
  const booking=bookingIntent();
  if(booking&&booking.error)return notice("inputNotice",booking.error,"bad");
@@ -389,6 +390,7 @@ function checkCapacity(r){
  fetchCapacity(false).then(feed=>{
   if(run!==capacityRun)return;
   feed=withoutOwnBooking(feed,r.booking);
+  renderPastLeadTime(r,feed,wp);
   if(r.backward)return backwardCapacity(r,feed,need,wp);
   if(r.rocket)return rocketCapacity(r,feed,need,wp);
   const p=LTCore.planCapacity(feed,{load:need,wpType:wp,earliest:r.etd});
@@ -468,6 +470,40 @@ function rocketCapacity(r,feed,need,wp){
   ${rows?`<table><thead><tr><th>ETD</th><th class="right">Booked CCT</th><th class="right">Free CCT</th><th></th></tr></thead><tbody>${rows}</tbody></table>${carryNote(p)}`:""}</div>`;
  const h=history();if(h[0]&&h[0].etd===r.etd&&h[0].cct===r.cct){h[0].capEtd=capEtd;h[0].capNote=note;saveHistory(h);renderHistory()}
  recordBooking(r,capEtd,note);
+}
+
+// ---- Past lead time (Tracker feed: first seen in PRIORITES BARU -> DATE TO FG, per finished lot) ----
+const PAST_MIN=5; // orders needed before a match level is used
+function quantile(sorted,q){if(!sorted.length)return null;const p=(sorted.length-1)*q,lo=Math.floor(p),hi=Math.ceil(p);return sorted[lo]+(sorted[hi]-sorted[lo])*(p-lo)}
+function custKey(v){return String(v||"").toUpperCase().replace(/[^0-9A-Z]/g,"")}
+function renderPastLeadTime(r,feed,wp){
+ const all=Array.isArray(feed.leadTimes)?feed.leadTimes:null;const box=$("pastBox");
+ if(!all){box.innerHTML="";return}
+ if(!all.length){box.innerHTML='<div class="cap muted">📊 No finished orders with a known start yet — past lead times appear once lots tracked from their first day reach FG.</div>';return}
+ const ck=custKey(r.customer),hasCust=all.some(x=>x.c!==undefined);
+ const cust=x=>custKey(x.c)===ck,line=x=>!wp||(wp.includes("+")?wp.split("+").includes(x.t):x.t===wp);
+ const near=(v,ref)=>v&&ref&&v>=ref/2&&v<=ref*2;
+ const cct=x=>near(x.cct,r.cct),qty=x=>near(x.qty,r.qty);
+ const W=wp?wpLabel(wp):"",C=`CCT ${Math.round(r.cct/2)}–${r.cct*2}`,Q=`qty ${Math.max(1,Math.floor(r.qty/2))}–${r.qty*2}`,N=esc(r.customer);
+ const R=r.customer,levels=(hasCust?[[[cust,line,cct,qty],[R,W,C,Q]],[[cust,line,cct],[R,W,C]],[[cust,line],[R,W]]]:[])
+  .concat([[[line,cct,qty],[W,C,Q]],[[line,cct],[W,C]]]).concat(hasCust?[[[cust],[R]]]:[]).concat([[[line],[W]],[[],["all finished orders"]]]);
+ let pick=null;
+ for(const [tests,labels] of levels){const m=all.filter(x=>tests.every(t=>t(x)));if(m.length>=PAST_MIN){pick={m,label:labels.filter(Boolean).join(" · ")};break}}
+ if(!pick){box.innerHTML=`<div class="cap muted">📊 Only ${all.length} finished order(s) with a known start so far — too few to compare.</div>`;return}
+ const lts=pick.m.map(x=>x.lt).sort((a,b)=>a-b),med=Math.round(quantile(lts,.5)),fast=Math.round(quantile(lts,.25));
+ const reqs=(hasCust?all.filter(cust):[]).map(x=>x.req).filter(v=>v!==null&&v!==undefined&&v>0).sort((a,b)=>a-b);
+ const req=reqs.length>=3?Math.round(quantile(reqs,.5)):null;
+ const lt=r.totalLT,diff=lt-med;
+ box.innerHTML=`<div class="cap"><h3>📊 Past orders like this</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline">
+   <div><div class="muted" style="font-size:12px">Median actual LT</div><div class="etd2">${med} days</div></div>
+   <div><div class="muted" style="font-size:12px">Fastest quarter</div><div class="etd2">${fast} days</div></div>
+   <div><div class="muted" style="font-size:12px">Formula LT</div><div class="etd2">${lt} days</div></div>
+   ${req!==null?`<div><div class="muted" style="font-size:12px">${N} usually asks for</div><div class="etd2">${req} days</div></div>`:""}
+  </div>
+  <p class="muted" style="margin:8px 0 0">${pick.m.length} finished order(s): ${esc(pick.label)} · last 12 months. Actual LT = first day the ASSY was in PRIORITES BARU → DATE TO FG.
+  ${diff>3?` The formula is <b>${diff} days longer</b> than what these orders usually took.`:diff<-3?` The formula is <b>${-diff} days shorter</b> than these orders usually took.`:" The formula is close to what these orders usually took."}
+  ${req!==null&&req<fast?` ${N}'s usual request is shorter than even our fastest quarter.`:""}</p></div>`;
 }
 
 // ---- Tracker bookings: Production holds the CCT on its ETD week in the Tracker capacity; Quotation is a record only ----
