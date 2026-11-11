@@ -215,3 +215,6 @@ const result = LTCore.calcLeadTime(inputs, master); // { status: "ok" | "review"
 - The 未完製品入荷フロー dashboard of V3.14–V3.15 (`incomplete.html`, `tracker/IncompleteCases.gs`) moved out of the Planner into its own app, [Baz5488/incomplete-case](https://github.com/Baz5488/incomplete-case), which keeps its cases in its own Google Sheet and Apps Script. The Tracker `Code.gs` no longer hooks it into `doGet` / `doPost`.
   - Before deleting the INCOMPLETE_CASES tab in the Tracker spreadsheet, copy its cases to the new app's spreadsheet.
   - In the Tracker's Apps Script, delete the `IncompleteCases` file. Never keep `incompleteGet_` / `incompletePost_` lines in `doGet` / `doPost` without that file: every request would fail, including the Planner's capacity feed.
+
+## V3.17 update — past lead time: say when the Tracker does not send it
+- When the Tracker link works but the Tracker does not send past lead times yet (its `Code.gs` is older than V3.16), the 📊 box now says so instead of staying hidden.
