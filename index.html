@@ -201,10 +201,10 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}pre{bac
 <p>This is a static PWA. Upload all files in this folder to the root of a GitHub repository and enable GitHub Pages.</p>
 </div>
 </section>
-<div class="footer">PROTO CONTROL · Planner v3.16 (Manufacturing LT Calculator) • Offline PWA</div>
+<div class="footer">PROTO CONTROL · Planner v3.17 (Manufacturing LT Calculator) • Offline PWA</div>
 </div>
 
-<script src="lt-core.js?v=3.16"></script>
+<script src="lt-core.js?v=3.17"></script>
 <script>
 const DEFAULT=LTCore.DEFAULT_MASTER, clone=LTCore.clone, normalize=LTCore.normalizeMaster;
 const KEY="manufacturing_lt_v2_master", HIST="manufacturing_lt_v2_history", DEFKEY="manufacturing_lt_v2_user_default";
@@ -478,7 +478,7 @@ function quantile(sorted,q){if(!sorted.length)return null;const p=(sorted.length
 function custKey(v){return String(v||"").toUpperCase().replace(/[^0-9A-Z]/g,"")}
 function renderPastLeadTime(r,feed,wp){
  const all=Array.isArray(feed.leadTimes)?feed.leadTimes:null;const box=$("pastBox");
- if(!all){box.innerHTML="";return}
+ if(!all){box.innerHTML='<div class="cap muted">📊 Past lead times: the Tracker does not send them yet. Update the Tracker Code.gs (the version with past lead times) and deploy it as a New version.</div>';return}
  if(!all.length){box.innerHTML='<div class="cap muted">📊 No finished orders with a known start yet — past lead times appear once lots tracked from their first day reach FG.</div>';return}
  const ck=custKey(r.customer),hasCust=all.some(x=>x.c!==undefined);
  const cust=x=>custKey(x.c)===ck,line=x=>!wp||(wp.includes("+")?wp.split("+").includes(x.t):x.t===wp);
